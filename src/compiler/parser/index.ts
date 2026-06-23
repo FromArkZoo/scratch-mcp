@@ -59,13 +59,14 @@ const isNumeric = (s: string) => s.trim() !== "" && !Number.isNaN(Number(s));
 function parseRound(g: Group, line: number, ctx: ParseCtx): InputValue {
   if (g.kind === "round") {
     const gs = groups(g.toks);
-    // a single bare word → literal number/var; otherwise a nested reporter
-    if (gs.length === 1 && gs[0].kind === "word") {
-      const w = (gs[0] as any).v as string;
+    // a bare word run → number / known-variable / lenient literal; otherwise a nested reporter
+    if (gs.length >= 1 && gs.every((x) => x.kind === "word")) {
+      const w = gs.map((x) => (x as any).v as string).join(" ");
       if (isNumeric(w)) return { kind: "literal", value: w };
       if (ctx.knownVars.has(w)) return { kind: "variable", name: w };
-      // a bare unknown word in a round slot: treat as a (string) literal — lenient
-      return { kind: "literal", value: w };
+      // a single bare unknown word stays a lenient (string) literal;
+      // a multi-word non-variable run falls through to reporter matching (preserves unbracketed-infix)
+      if (gs.length === 1) return { kind: "literal", value: w };
     }
     const blk = matchGroups(gs, line, ctx, "reporter");
     if (blk) return { kind: "block", block: blk };

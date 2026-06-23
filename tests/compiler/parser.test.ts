@@ -61,3 +61,10 @@ test("a boolean reporter parses into a block: <(1) > (2)>", () => {
   expect(diagnostics.some((d) => d.severity === "error")).toBe(true);
   void scripts;
 });
+
+test("a multi-word known variable in a round slot becomes a variable reporter", () => {
+  const mv = new Set(["my score", "c"]);
+  const { scripts, diagnostics } = parseScripts("when green flag clicked\nchange [c v] by (my score)", "f", mv);
+  expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  expect(scripts[0].blocks[1].inputs.VALUE).toEqual({ kind: "variable", name: "my score" });
+});
