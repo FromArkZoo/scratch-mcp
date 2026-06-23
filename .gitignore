@@ -1,0 +1,5 @@
+node_modules/
+build/
+dist/
+*.sb3
+.DS_Store
