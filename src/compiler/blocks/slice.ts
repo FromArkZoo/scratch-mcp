@@ -12,7 +12,7 @@ export const SLICE: BlockDef[] = [
   },
   {
     signature: "repeat (TIMES)", opcode: "control_repeat", shape: "c",
-    inputs: { TIMES: { kind: "number", shadowType: 6 } }, substack: "SUBSTACK",
+    inputs: { TIMES: { kind: "number", shadowType: 6 } }, substacks: ["SUBSTACK"],
   },
   {
     signature: "move (STEPS) steps", opcode: "motion_movesteps", shape: "stack",

@@ -12,7 +12,7 @@ test("slice covers the six expected opcodes", () => {
 test("repeat is a c-block with a SUBSTACK and a whole-number TIMES input", () => {
   const def = byOpcode.get("control_repeat")!;
   expect(def.shape).toBe("c");
-  expect(def.substack).toBe("SUBSTACK");
+  expect(def.substacks).toEqual(["SUBSTACK"]);
   expect(def.inputs!.TIMES.shadowType).toBe(6);
 });
 

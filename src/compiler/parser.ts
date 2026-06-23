@@ -74,8 +74,9 @@ export function parseScripts(source: string, file: string): { scripts: ParsedScr
       if (!matched) { diagnostics.push({ file, line, severity: "error", message: `unknown block "${text}"` }); pos++; continue; }
       pos++;
       const block: ParsedBlock = { opcode: matched.def.opcode, inputs: matched.inputs, fields: matched.fields, substacks: {} };
-      if (matched.def.shape === "c" && matched.def.substack) {
-        block.substacks[matched.def.substack] = parseStack(true);
+      const sub0 = matched.def.substacks?.[0];
+      if (matched.def.shape === "c" && sub0) {
+        block.substacks[sub0] = parseStack(true);
       }
       out.push(block);
     }

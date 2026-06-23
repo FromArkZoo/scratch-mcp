@@ -47,13 +47,12 @@ export async function packageProject(
         if (entry.topLevel) { entry.x = hatXY.x; entry.y = hatXY.y; }
         if (def) {
           for (const [nm, spec] of Object.entries(def.inputs ?? {})) {
-            if (spec.kind === "substack") continue;
             const v = b.inputs[nm]?.value ?? "";
             entry.inputs[nm] = [1, [spec.shadowType ?? 4, v]];
           }
-          if (def.substack) {
-            const kids = b.substacks[def.substack] ?? [];
-            if (kids.length) entry.inputs[def.substack] = [2, emitStack(kids, id, false, hatXY)];
+          for (const sub of def.substacks ?? []) {
+            const kids = b.substacks[sub] ?? [];
+            if (kids.length) entry.inputs[sub] = [2, emitStack(kids, id, false, hatXY)];
           }
           for (const [nm, fspec] of Object.entries(def.fields ?? {})) {
             if (fspec.kind === "variable") {
