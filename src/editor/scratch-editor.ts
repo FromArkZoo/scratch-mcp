@@ -24,15 +24,20 @@ export class ScratchEditor {
   ) {}
 
   static async launch(opts: LaunchOptions = {}): Promise<ScratchEditor> {
-    const server = await serveDir(EDITOR_DIST);
-    const browser = await chromium.launch({ headless: opts.headless ?? false });
-    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-    await page.goto(server.url, { waitUntil: "load" });
-    await page.waitForFunction(
-      () => Boolean((window as any).vm) && (window as any).__scratchReady === true,
-      { timeout: 60_000 },
-    );
-    return new ScratchEditor(server, browser, page);
+    const server = await serveDir(EDITOR_DIST, opts.port);
+    try {
+      const browser = await chromium.launch({ headless: opts.headless ?? false });
+      const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+      await page.goto(server.url, { waitUntil: "load" });
+      await page.waitForFunction(
+        () => Boolean((window as any).vm) && (window as any).__scratchReady === true,
+        { timeout: 60_000 },
+      );
+      return new ScratchEditor(server, browser, page);
+    } catch (e) {
+      await server.close().catch(() => {});
+      throw e;
+    }
   }
 
   /** Test-only probe. */

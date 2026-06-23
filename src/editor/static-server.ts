@@ -13,12 +13,13 @@ export interface StaticServer {
   close: () => Promise<void>;
 }
 
-export async function serveDir(root: string): Promise<StaticServer> {
+export async function serveDir(root: string, port = 0): Promise<StaticServer> {
+  const normRoot = normalize(root);
   const server = http.createServer(async (req, res) => {
     try {
       const rawPath = decodeURIComponent((req.url ?? "/").split("?")[0]);
       let filePath = normalize(join(root, rawPath));
-      if (!filePath.startsWith(normalize(root))) { res.statusCode = 403; return res.end(); }
+      if (!filePath.startsWith(normRoot)) { res.statusCode = 403; return res.end(); }
       try {
         if ((await stat(filePath)).isDirectory()) filePath = join(filePath, "index.html");
       } catch {
@@ -31,11 +32,14 @@ export async function serveDir(root: string): Promise<StaticServer> {
       res.statusCode = 404; res.end("not found");
     }
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => server.listen(port, "127.0.0.1", resolve));
   const addr = server.address();
-  const port = typeof addr === "object" && addr ? addr.port : 0;
+  const boundPort = typeof addr === "object" && addr ? addr.port : 0;
   return {
-    url: `http://127.0.0.1:${port}/`,
-    close: () => new Promise((resolve) => server.close(() => resolve())),
+    url: `http://127.0.0.1:${boundPort}/`,
+    close: () => new Promise((resolve) => {
+      server.closeAllConnections?.();
+      server.close(() => resolve());
+    }),
   };
 }
