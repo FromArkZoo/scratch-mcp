@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:fixture": "npm run build && node tests/fixtures/build-spin.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

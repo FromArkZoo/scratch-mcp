@@ -76,6 +76,9 @@ export class ScratchEditor {
   }
 
   async loadProject(sb3: Buffer): Promise<void> {
+    // Note: for very large .sb3 files (multi-MB with embedded assets) this base64 string
+    // crosses the Playwright IPC boundary; a future optimization could read bytes in the
+    // browser context directly to avoid the serialisation overhead.
     const b64 = sb3.toString("base64");
     await this.page.evaluate(async (data: string) => {
       const bin = atob(data);
@@ -97,6 +100,7 @@ export class ScratchEditor {
     const dataUrl: string = await this.page.evaluate(() => {
       const vm = (window as any).vm;
       const canvas = vm.renderer?.canvas as HTMLCanvasElement;
+      if (!canvas) throw new Error("renderer canvas unavailable");
       // force a render so the snapshot reflects current state
       vm.renderer?.draw?.();
       return canvas.toDataURL("image/png");

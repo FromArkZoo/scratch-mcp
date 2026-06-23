@@ -15,8 +15,9 @@ A minimal Scratch 3 project used to validate the live VM bridge.
 The fixture is generated from `spin.project.json` by `build-spin.mjs`. To regenerate:
 
 ```bash
-npm run build          # compile TypeScript → dist/
-node tests/fixtures/build-spin.mjs
+npm run build:fixture
 ```
+
+This is equivalent to `npm run build && node tests/fixtures/build-spin.mjs` — the build step is required because `build-spin.mjs` imports `serveDir` from the compiled `dist/` output, so `dist/` must exist before the builder runs.
 
 `build-spin.mjs` launches the self-hosted Scratch editor via Playwright, loads `spin.project.json` into the live VM, calls `vm.saveProjectSb3()` to serialise the project as a real `.sb3` (ZIP containing `project.json` + bundled assets), and writes the result to `spin.sb3`. The green flag is **not** triggered before saving, so the initial `angle` value of `0` is preserved.
