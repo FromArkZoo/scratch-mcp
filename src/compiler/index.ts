@@ -2,7 +2,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseManifest } from "./manifest.js";
-import { parseScripts } from "./parser.js";
+import { parseScripts } from "./parser/index.js";
 import { packageProject } from "./packager.js";
 import type { CompileResult, Diagnostic, ParsedScript } from "./types.js";
 
@@ -18,12 +18,15 @@ export async function compileProject(dir: string): Promise<CompileResult> {
   diagnostics.push(...md);
 
   const scriptsByTarget = new Map<string, ParsedScript[]>();
+  const stage = project.targets.find((t) => t.isStage);
+  const globalNames = stage ? stage.variables.map((v) => v.name) : [];
   for (const t of project.targets) {
     if (!t.sourceFile) continue;
     let src: string;
     try { src = await readFile(join(dir, t.sourceFile), "utf8"); }
     catch { diagnostics.push({ file: t.sourceFile, line: 0, severity: "error", message: `source file not found: ${t.sourceFile}` }); continue; }
-    const { scripts, diagnostics: pd } = parseScripts(src, t.sourceFile);
+    const knownVars = new Set<string>([...t.variables.map((v) => v.name), ...globalNames]);
+    const { scripts, diagnostics: pd } = parseScripts(src, t.sourceFile, knownVars);
     diagnostics.push(...pd);
     scriptsByTarget.set(t.name, scripts);
   }

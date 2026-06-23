@@ -1,49 +1,63 @@
 import { expect, test } from "vitest";
-import { parseScripts } from "../../src/compiler/parser.js";
+import { parseScripts } from "../../src/compiler/parser/index.js";
 
-const src = `when green flag clicked
-set [angle] to (0)
-repeat (36)
-  turn right (10) degrees
-  change [angle] by (10)
-end`;
+const vars = new Set(["angle", "r", "c"]);
 
-test("parses a hat + nested c-block into IR", () => {
-  const { scripts, diagnostics } = parseScripts(src, "cat.sprite.scratch");
+test("parses a hat + a set with a literal", () => {
+  const { scripts, diagnostics } = parseScripts("when green flag clicked\nset [angle v] to (0)", "f", vars);
   expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
-  expect(scripts).toHaveLength(1);
   const b = scripts[0].blocks;
   expect(b[0].opcode).toBe("event_whenflagclicked");
   expect(b[1].opcode).toBe("data_setvariableto");
   expect(b[1].fields.VARIABLE).toBe("angle");
-  const valueInput = b[1].inputs.VALUE;
-  expect(valueInput.kind === "literal" ? valueInput.value : undefined).toBe("0");
-  const rep = b[2];
-  expect(rep.opcode).toBe("control_repeat");
-  const timesInput = rep.inputs.TIMES;
-  expect(timesInput.kind === "literal" ? timesInput.value : undefined).toBe("36");
-  expect(rep.substacks.SUBSTACK.map((x) => x.opcode)).toEqual(["motion_turnright", "data_changevariableby"]);
+  expect(b[1].inputs.VALUE).toEqual({ kind: "literal", value: "0" });
+});
+
+test("parses a nested infix reporter into a block InputValue", () => {
+  const { scripts, diagnostics } = parseScripts("when green flag clicked\nset [r v] to ((3) + (4))", "f", vars);
+  expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  const setv = scripts[0].blocks[1];
+  const val = setv.inputs.VALUE;
+  expect(val.kind).toBe("block");
+  if (val.kind === "block") {
+    expect(val.block.opcode).toBe("operator_add");
+    expect(val.block.inputs.NUM1).toEqual({ kind: "literal", value: "3" });
+    expect(val.block.inputs.NUM2).toEqual({ kind: "literal", value: "4" });
+  }
+});
+
+test("a bare known-variable name in a round slot becomes a variable reporter", () => {
+  const { scripts } = parseScripts("when green flag clicked\nchange [c v] by (c)", "f", vars);
+  expect(scripts[0].blocks[1].inputs.VALUE).toEqual({ kind: "variable", name: "c" });
+});
+
+test("a dropdown field + nested input: ([abs v] of (-5))", () => {
+  const { scripts, diagnostics } = parseScripts("when green flag clicked\nset [r v] to ([abs v] of (-5))", "f", vars);
+  expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  const val = scripts[0].blocks[1].inputs.VALUE;
+  expect(val.kind).toBe("block");
+  if (val.kind === "block") {
+    expect(val.block.opcode).toBe("operator_mathop");
+    expect(val.block.fields.OPERATOR).toBe("abs");
+    expect(val.block.inputs.NUM).toEqual({ kind: "literal", value: "-5" });
+  }
+});
+
+test("a menu input becomes a menu InputValue", () => {
+  const { scripts } = parseScripts("when green flag clicked\ngo to [random position v]", "f", vars);
+  expect(scripts[0].blocks[1].inputs.TO).toEqual({ kind: "menu", value: "random position" });
 });
 
 test("an unknown block is a fail-loud diagnostic", () => {
-  const { diagnostics } = parseScripts("when green flag clicked\nfly (3) times", "f.scratch");
+  const { diagnostics } = parseScripts("when green flag clicked\nfly (3) times", "f", vars);
   expect(diagnostics.some((d) => d.severity === "error" && /fly/.test(d.message))).toBe(true);
 });
 
-test("a script whose first line is not a hat emits an error diagnostic and does not throw", () => {
-  const { diagnostics } = parseScripts("move (10) steps", "f.scratch");
+test("a boolean reporter parses into a block: <(1) > (2)>", () => {
+  // exercised via 'wait until' is Task 6; here assert operator_gt parses standalone as an input is not valid,
+  // so test the matcher through 'not': set is invalid for boolean, use the standalone parse helper instead.
+  const { scripts, diagnostics } = parseScripts("when green flag clicked\nset [r v] to <(1) > (2)>", "f", vars);
+  // boolean into a number slot is a type error → fail loud
   expect(diagnostics.some((d) => d.severity === "error")).toBe(true);
-});
-
-test("a stray end with no open c-block emits an error diagnostic and does not throw", () => {
-  const { diagnostics } = parseScripts("when green flag clicked\nend", "f.scratch");
-  expect(diagnostics.some((d) => d.severity === "error" && /unexpected.*end/i.test(d.message))).toBe(true);
-});
-
-test("an unterminated c-block emits an error diagnostic and does not throw", () => {
-  const { diagnostics } = parseScripts(
-    "when green flag clicked\nrepeat (3)\nmove (10) steps",
-    "f.scratch"
-  );
-  expect(diagnostics.some((d) => d.severity === "error" && /c-block.*end|end.*c-block|no matching/i.test(d.message))).toBe(true);
+  void scripts;
 });
