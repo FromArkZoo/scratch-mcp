@@ -14,13 +14,21 @@ export function parseManifest(yamlText: string, file: string): { project: Projec
     diagnostics.push({ file, line: 0, severity: "error", message: `invalid YAML: ${(e as Error).message}` });
     return { project: { name: "", targets: [] }, diagnostics };
   }
+  if (!doc || typeof doc !== "object" || Array.isArray(doc)) {
+    diagnostics.push({ file, line: 0, severity: "error", message: "manifest must be a YAML mapping" });
+    return { project: { name: "", targets: [] }, diagnostics };
+  }
   const vars = doc?.variables ?? {};
   const stage: TargetDecl = {
     name: "Stage", isStage: true,
     sourceFile: doc?.stage?.source,
     variables: toVarDecls(vars.global),
   };
-  const sprites: TargetDecl[] = (doc?.sprites ?? []).map((s: any) => ({
+  if (doc.sprites != null && !Array.isArray(doc.sprites)) {
+    diagnostics.push({ file, line: 0, severity: "error", message: "sprites must be a list" });
+  }
+  const spriteList = Array.isArray(doc.sprites) ? doc.sprites : [];
+  const sprites: TargetDecl[] = spriteList.map((s: any) => ({
     name: s.name, isStage: false, sourceFile: s.source,
     x: s.x, y: s.y, size: s.size, direction: s.direction, visible: s.visible,
     variables: toVarDecls(vars[s.name]),

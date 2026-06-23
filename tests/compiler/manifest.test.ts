@@ -31,3 +31,14 @@ test("malformed yaml is a fail-loud diagnostic, not a throw", () => {
   const { diagnostics } = parseManifest("name: [unterminated", "project.yaml");
   expect(diagnostics.some((d) => d.severity === "error")).toBe(true);
 });
+
+test("non-mapping manifest fails loud with empty targets", () => {
+  const { project, diagnostics } = parseManifest("42", "project.yaml");
+  expect(diagnostics.some((d) => d.severity === "error")).toBe(true);
+  expect(project.targets).toEqual([]);
+});
+
+test("non-array sprites is a diagnostic, not a throw", () => {
+  const { diagnostics } = parseManifest("name: G\nsprites: oops", "project.yaml");
+  expect(diagnostics.some((d) => d.severity === "error")).toBe(true);
+});
