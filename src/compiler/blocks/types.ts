@@ -4,9 +4,10 @@ export type BlockShape = "hat" | "stack" | "cap" | "c" | "reporter" | "boolean";
 export type ShadowType = 4 | 6 | 8 | 9 | 10;
 
 export type InputSpec =
-  | { kind: "number" | "text"; shadowType?: ShadowType }                      // accepts a literal OR a nested reporter/variable
-  | { kind: "boolean"; shadowType?: ShadowType }                              // < > slot; no shadow
-  | { kind: "menu"; menuOpcode: string; field: string; default: string; shadowType?: ShadowType };
+  | { kind: "number" | "text"; shadowType: ShadowType }                       // accepts a literal OR a nested reporter/variable
+  | { kind: "boolean" }                                                        // < > slot; no shadow
+  | { kind: "menu"; menuOpcode: string; field: string; default: string; shadowType?: ShadowType }
+  | { kind: "substack" };
 
 export type FieldSpec =
   | { kind: "variable" }                                                      // resolves to [name, id]

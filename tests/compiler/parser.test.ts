@@ -16,10 +16,12 @@ test("parses a hat + nested c-block into IR", () => {
   expect(b[0].opcode).toBe("event_whenflagclicked");
   expect(b[1].opcode).toBe("data_setvariableto");
   expect(b[1].fields.VARIABLE).toBe("angle");
-  expect(b[1].inputs.VALUE.value).toBe("0");
+  const valueInput = b[1].inputs.VALUE;
+  expect(valueInput.kind === "literal" ? valueInput.value : undefined).toBe("0");
   const rep = b[2];
   expect(rep.opcode).toBe("control_repeat");
-  expect(rep.inputs.TIMES.value).toBe("36");
+  const timesInput = rep.inputs.TIMES;
+  expect(timesInput.kind === "literal" ? timesInput.value : undefined).toBe("36");
   expect(rep.substacks.SUBSTACK.map((x) => x.opcode)).toEqual(["motion_turnright", "data_changevariableby"]);
 });
 

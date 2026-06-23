@@ -13,12 +13,14 @@ test("repeat is a c-block with a SUBSTACK and a whole-number TIMES input", () =>
   const def = byOpcode.get("control_repeat")!;
   expect(def.shape).toBe("c");
   expect(def.substacks).toEqual(["SUBSTACK"]);
-  expect(def.inputs!.TIMES.shadowType).toBe(6);
+  const timesSpec = def.inputs!.TIMES;
+  expect(timesSpec.kind === "number" || timesSpec.kind === "text" ? timesSpec.shadowType : undefined).toBe(6);
 });
 
 test("set variable resolves by signature and has a variable field", () => {
   const def = bySignature.get("set [VARIABLE] to (VALUE)")!;
   expect(def.opcode).toBe("data_setvariableto");
   expect(def.fields!.VARIABLE.kind).toBe("variable");
-  expect(def.inputs!.VALUE.shadowType).toBe(10);
+  const valueSpec = def.inputs!.VALUE;
+  expect(valueSpec.kind === "number" || valueSpec.kind === "text" ? valueSpec.shadowType : undefined).toBe(10);
 });

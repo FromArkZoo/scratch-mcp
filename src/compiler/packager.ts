@@ -47,8 +47,11 @@ export async function packageProject(
         if (entry.topLevel) { entry.x = hatXY.x; entry.y = hatXY.y; }
         if (def) {
           for (const [nm, spec] of Object.entries(def.inputs ?? {})) {
-            const v = b.inputs[nm]?.value ?? "";
-            entry.inputs[nm] = [1, [spec.shadowType ?? 4, v]];
+            if (spec.kind === "substack") continue;
+            const iv = b.inputs[nm];
+            const v = iv && iv.kind === "literal" ? iv.value : "";
+            const shadowType = "shadowType" in spec ? spec.shadowType ?? 4 : 4;
+            entry.inputs[nm] = [1, [shadowType, v]];
           }
           for (const sub of def.substacks ?? []) {
             const kids = b.substacks[sub] ?? [];

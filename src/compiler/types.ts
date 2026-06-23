@@ -21,8 +21,8 @@ export interface Project { name: string; targets: TargetDecl[]; } // targets[0] 
 // ---- parsed script IR (produced by the parser, consumed by the packager) ----
 export type InputValue =
   | { kind: "literal"; value: string }       // (10) / [hello]
-  | { kind: "variable"; name: string; value?: undefined }       // (score) used as a reporter input
-  | { kind: "block"; block: ParsedBlock; value?: undefined }    // nested reporter ( ) or boolean < >
+  | { kind: "variable"; name: string }       // (score) used as a reporter input
+  | { kind: "block"; block: ParsedBlock }    // nested reporter ( ) or boolean < >
   | { kind: "menu"; value: string };         // [edge v] shadow-menu selection
 
 export interface ParsedBlock {
