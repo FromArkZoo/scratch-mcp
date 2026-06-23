@@ -3,3 +3,7 @@ build/
 dist/
 *.sb3
 .DS_Store
+
+# Self-hosted editor (Task 2): built bundle + deps are not committed.
+editor/dist/
+editor/node_modules/
