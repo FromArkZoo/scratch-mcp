@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 /** A deterministic, self-contained SVG costume used when no real art is resolved. */
 export function generatePlaceholderCostume(seed: string): {
-  name: string; svg: string; bytes: Buffer; md5: string; md5ext: string; dataFormatOk?: boolean;
+  name: string; svg: string; bytes: Buffer; md5: string; md5ext: string;
 } {
   // deterministic hue from the seed
   let h = 0;
