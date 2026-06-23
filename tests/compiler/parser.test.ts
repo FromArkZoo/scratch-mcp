@@ -27,3 +27,21 @@ test("an unknown block is a fail-loud diagnostic", () => {
   const { diagnostics } = parseScripts("when green flag clicked\nfly (3) times", "f.scratch");
   expect(diagnostics.some((d) => d.severity === "error" && /fly/.test(d.message))).toBe(true);
 });
+
+test("a script whose first line is not a hat emits an error diagnostic and does not throw", () => {
+  const { diagnostics } = parseScripts("move (10) steps", "f.scratch");
+  expect(diagnostics.some((d) => d.severity === "error")).toBe(true);
+});
+
+test("a stray end with no open c-block emits an error diagnostic and does not throw", () => {
+  const { diagnostics } = parseScripts("when green flag clicked\nend", "f.scratch");
+  expect(diagnostics.some((d) => d.severity === "error" && /unexpected.*end/i.test(d.message))).toBe(true);
+});
+
+test("an unterminated c-block emits an error diagnostic and does not throw", () => {
+  const { diagnostics } = parseScripts(
+    "when green flag clicked\nrepeat (3)\nmove (10) steps",
+    "f.scratch"
+  );
+  expect(diagnostics.some((d) => d.severity === "error" && /c-block.*end|end.*c-block|no matching/i.test(d.message))).toBe(true);
+});

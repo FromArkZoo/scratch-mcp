@@ -1,4 +1,4 @@
-import { bySignature, SLICE } from "./blocks/registry.js";
+import { SLICE } from "./blocks/registry.js";
 import type { BlockDef } from "./blocks/types.js";
 import type { Diagnostic, ParsedBlock, ParsedScript } from "./types.js";
 
@@ -12,7 +12,7 @@ function sigTokens(sig: string): Token[] {
     if (m[1]) out.push({ hole: "round", name: m[1] });
     else if (m[2]) out.push({ hole: "square", name: m[2] });
     else if (m[3]) out.push({ hole: "curly", name: m[3] });
-    else out.push({ lit: m[4] });
+    else out.push({ lit: m[4]! });
   }
   return out;
 }
@@ -20,15 +20,17 @@ function sigTokens(sig: string): Token[] {
 // pre-tokenize all signatures once
 const SIGS: { def: BlockDef; toks: Token[] }[] = SLICE.map((def) => ({ def, toks: sigTokens(def.signature) }));
 
+type LineTok = { lit: string } | { val: string; kind: "round" | "square" };
+
 /** Split a source line into bracket-aware tokens: words, (..), [..]. */
-function lineTokens(line: string): { lit: string }[] | { val: string; kind: "round" | "square" }[] | any[] {
-  const out: any[] = [];
+function lineTokens(line: string): LineTok[] {
+  const out: LineTok[] = [];
   const re = /\(([^)]*)\)|\[([^\]]*)\]|(\S+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(line))) {
     if (m[1] !== undefined && m[3] === undefined && line[m.index] === "(") out.push({ val: m[1].trim(), kind: "round" });
     else if (m[2] !== undefined && line[m.index] === "[") out.push({ val: m[2].trim(), kind: "square" });
-    else out.push({ lit: m[3] });
+    else out.push({ lit: m[3]! });
   }
   return out;
 }
@@ -40,11 +42,13 @@ function matchLine(line: string): { def: BlockDef; inputs: Record<string, { kind
     const inputs: Record<string, { kind: "literal"; value: string }> = {};
     const fields: Record<string, string> = {};
     for (let i = 0; i < toks.length; i++) {
-      const t = toks[i] as any; const v = lt[i] as any;
+      const t = toks[i];
+      const v = lt[i];
+      if (t === undefined || v === undefined) continue outer;
       if ("lit" in t) { if (!("lit" in v) || v.lit !== t.lit) continue outer; }
-      else if (t.hole === "round") { if (v.kind !== "round") continue outer; inputs[t.name] = { kind: "literal", value: v.val }; }
-      else if (t.hole === "square") {
-        if (v.kind !== "square") continue outer;
+      else if ("hole" in t && t.hole === "round") { if (!("kind" in v) || v.kind !== "round") continue outer; inputs[t.name] = { kind: "literal", value: v.val }; }
+      else if ("hole" in t && t.hole === "square") {
+        if (!("kind" in v) || v.kind !== "square") continue outer;
         if (def.fields?.[t.name]) fields[t.name] = v.val; else inputs[t.name] = { kind: "literal", value: v.val };
       } else continue outer; // curly holes don't appear in source lines
     }
@@ -74,6 +78,10 @@ export function parseScripts(source: string, file: string): { scripts: ParsedScr
         block.substacks[matched.def.substack] = parseStack(true);
       }
       out.push(block);
+    }
+    if (stopOnEnd) {
+      const lastLine = lines.length > 0 ? lines[lines.length - 1]!.line : 1;
+      diagnostics.push({ file, line: lastLine, severity: "error", message: `c-block opened but no matching "end" before end of file` });
     }
     return out;
   }
