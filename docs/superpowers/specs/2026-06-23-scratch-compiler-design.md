@@ -88,7 +88,7 @@ interface BlockDef {
   fields?: Record<string, FieldSpec>;   // VARIABLE → variable field, KEY_OPTION → dropdown
 }
 ```
-Entries are authored from the canonical Scratch block set (`scratch-vm` opcodes + the scratchblocks language reference). Organized by category file (`motion.ts`, `looks.ts`, …) so build-out parallelizes cleanly — **one ultracode agent per category**, each adding entries + the semantic tests that prove them.
+Entries are authored from the canonical Scratch block set (`scratch-vm` opcodes + the scratchblocks language reference). Organized by category file (`motion.ts`, `looks.ts`, … plus `pen.ts`, `music.ts`) so build-out parallelizes cleanly — **one ultracode agent per category**, each adding entries + the semantic tests that prove them.
 
 **Procedures** (custom blocks) need their own machinery: `procedures_definition` + `procedures_prototype` (with mutation: `proccode`, `argumentids`, `argumentnames`, `argumentdefaults`, `warp`), `procedures_call` (matching mutation), and the two `argument_reporter_*` opcodes. This is the fiddliest family and gets a dedicated phase.
 
@@ -102,7 +102,7 @@ Resolves costume/sound **names** to real assets:
 Network is needed only the first time a given library asset is used; the editor itself stays offline. Diagnostics warn when a fetch fails and a placeholder is substituted.
 
 ### 3.5 Packager (`src/compiler/packager.ts`)
-Assembles `project.json` directly from the parsed targets + resolved assets and zips it (`jszip`) into a `.sb3` Buffer. Responsibilities: stable block-ID generation, top-level hat `x/y` layout, variable/list/broadcast ID assignment, costume/sound entries, asset md5ext naming (Node `crypto` md5 of bytes), and the `meta` envelope. Hand-rolled (not `sb-edit`) so we fully control procedure mutations and custom block JSON. (This revises the parent spec's tentative `sb-edit` choice.)
+Assembles `project.json` directly from the parsed targets + resolved assets and zips it (`jszip`) into a `.sb3` Buffer. Responsibilities: stable block-ID generation, top-level hat `x/y` layout, variable/list/broadcast ID assignment, costume/sound entries, asset md5ext naming (Node `crypto` md5 of bytes), the `meta` envelope, and **populating `project.json`'s `extensions` array** when Pen/Music blocks are used (e.g. `["pen"]`, `["music"]`). Hand-rolled (not `sb-edit`) so we fully control procedure mutations and custom block JSON. (This revises the parent spec's tentative `sb-edit` choice.)
 
 ### 3.6 Decompiler (`src/compiler/decompile.ts`) — later phase
 `.sb3` → editable source folder (manifest + `*.sprite.scratch`), powering the MCP `import_sb3` tool. Round-trip need only be **semantically** faithful, not byte-identical. Deferred to its own phase/plan.
@@ -120,9 +120,9 @@ async function decompileSb3(sb3: Buffer, outDir: string): Promise<Diagnostic[]>;
 
 ## 5. Scope
 
-**In v1:** Motion, Looks, Sound, Events, Control, Sensing, Operators, Variables, Lists, **and custom blocks** (procedures with string/number/boolean args, argument reporters, call mutations, `warp`/"run without screen refresh"). Costumes/sounds via CDN library + generated fallback. Manifest with variables, lists, per-sprite state.
+**In v1:** Motion, Looks, Sound, Events, Control, Sensing, Operators, Variables, Lists, **custom blocks** (procedures with string/number/boolean args, argument reporters, call mutations, `warp`/"run without screen refresh"), **and the Pen and Music extensions** (pen down/up/stamp/clear + color/size; play note/drum, set instrument/tempo, rest) — near-core to a whole class of creative and musical ideas, and mechanically just two more dictionary categories. Costumes/sounds via CDN library + generated fallback. Manifest with variables, lists, per-sprite state.
 
-**Out of v1 (additive later):** extensions (pen, music, video sensing, text-to-speech, translate), cloud variables, `import_sb3` decompile (own phase). Each is additive — the dictionary and packager don't change shape to add them.
+**Out of v1 (additive later):** the remaining extensions (video sensing, text-to-speech, translate), cloud variables, `import_sb3` decompile (own phase). Each is additive — the dictionary and packager don't change shape to add them.
 
 ## 6. Error handling
 
@@ -154,3 +154,16 @@ TypeScript (strict), Node ≥25, ESM. New deps: `js-yaml` (manifest), `jszip` (s
 3. **CDN dependency** — first use of a library asset needs network; document it and degrade to a placeholder with a warning when offline + uncached.
 4. **Variable/broadcast declaration** — variables/lists come from the manifest; broadcasts are implied by `broadcast […]` / `when I receive […]` blocks. The parser must collect broadcast names and the packager assign IDs.
 5. **This compiler feeds the MCP server**, which still owes the parent-spec §15 decisions (run-completion signal, per-sprite variable namespacing). The compiler's `Project` model should keep variable scope (global vs per-sprite) explicit so the later `read_state` namespacing is natural.
+
+## 11. Deferred capabilities (from the idea-barrier review)
+
+Reviewed 2026-06-23 for "what would block realizing a Scratch idea." **Pen + Music folded into v1** (§5). These are recorded as deliberate deferrals — the architecture absorbs each additively when wanted:
+
+- **Claude-authored SVG costumes/backdrops** — let Claude write vector art directly into `assets/` as a first-class costume source (beyond library + placeholder), so custom visuals aren't limited to the library. Until then, costumes are CDN-library art or a generated labeled-shape placeholder.
+- **On-stage variable/list monitors** — generating `monitors[]` entries so `show variable [x]` visibly displays a value/slider on the stage. Until then the `show/hide variable` blocks compile but nothing renders on the stage. (Small packager addition.)
+- **Raw-block escape hatch** — a `raw:` directive (opcode + inputs) in source so a block missing from the dictionary never hard-blocks a whole project, decoupling realizability from dictionary completeness. (The fail-loud model otherwise turns any one unsupported block into a wall.)
+- **Multi-frame / timed verification** — belongs to the bridge/MCP plan, not the compiler: `snapshot` is a single frame, so Claude can't *see* motion. Add a short multi-frame capture or timed `read_state` sampling so animation/game behavior can be verified, not just static layout.
+- **Remix / `import_sb3`** — pull the decompile phase earlier than "someday": importing an existing `.sb3` as editable source is a strong *ideation entry point* ("start from this and extend it"), not just a convenience.
+- **Clone-aware `read_state`** — authoring clones works (Control blocks), but the bridge's `read_state` skips clones, limiting debugging of clone-heavy games. A bridge/MCP-plan refinement.
+
+Still comfortably out: cloud variables, video-sensing/TTS/translate extensions, audio recording, true bitmap costume editing.
