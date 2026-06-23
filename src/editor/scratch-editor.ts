@@ -50,10 +50,57 @@ export class ScratchEditor {
     await this.server.close().catch(() => {});
   }
 
-  // loadProject/run/stop/snapshot/readState implemented in Tasks 4–5.
-  async loadProject(_sb3: Buffer): Promise<void> { throw new Error("not implemented"); }
-  async run(): Promise<void> { throw new Error("not implemented"); }
-  async stop(): Promise<void> { throw new Error("not implemented"); }
-  async snapshot(): Promise<Buffer> { throw new Error("not implemented"); }
-  async readState(): Promise<ProjectState> { throw new Error("not implemented"); }
+  async readState(): Promise<ProjectState> {
+    return this.page.evaluate(() => {
+      const vm = (window as any).vm;
+      const targets = vm.runtime.targets as any[];
+      const variables: Record<string, string | number | boolean> = {};
+      const sprites: any[] = [];
+      for (const t of targets) {
+        if (!t || t.isOriginal === false) continue; // skip clones
+        for (const id of Object.keys(t.variables ?? {})) {
+          const v = t.variables[id];
+          if (v && v.type === "" /* scalar */) variables[v.name] = v.value;
+        }
+        if (!t.isStage) {
+          sprites.push({
+            name: t.sprite?.name ?? t.getName?.() ?? "",
+            x: t.x, y: t.y, direction: t.direction,
+            visible: t.visible, size: t.size,
+            costume: t.currentCostume,
+          });
+        }
+      }
+      return { variables, sprites };
+    });
+  }
+
+  async loadProject(sb3: Buffer): Promise<void> {
+    const b64 = sb3.toString("base64");
+    await this.page.evaluate(async (data: string) => {
+      const bin = atob(data);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      await (window as any).vm.loadProject(bytes.buffer);
+    }, b64);
+  }
+
+  async run(): Promise<void> {
+    await this.page.evaluate(() => (window as any).vm.greenFlag());
+  }
+
+  async stop(): Promise<void> {
+    await this.page.evaluate(() => (window as any).vm.stopAll());
+  }
+
+  async snapshot(): Promise<Buffer> {
+    const dataUrl: string = await this.page.evaluate(() => {
+      const vm = (window as any).vm;
+      const canvas = vm.renderer?.canvas as HTMLCanvasElement;
+      // force a render so the snapshot reflects current state
+      vm.renderer?.draw?.();
+      return canvas.toDataURL("image/png");
+    });
+    return Buffer.from(dataUrl.split(",")[1], "base64");
+  }
 }
