@@ -1,0 +1,4 @@
+name: Bad
+sprites:
+  - name: Cat
+    source: cat.sprite.scratch

@@ -1,0 +1,6 @@
+when green flag clicked
+set [angle] to (0)
+repeat (36)
+  turn right (10) degrees
+  change [angle] by (10)
+end

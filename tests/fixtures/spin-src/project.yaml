@@ -1,0 +1,8 @@
+name: Spin
+sprites:
+  - name: Cat
+    source: cat.sprite.scratch
+    x: 0
+    y: 0
+variables:
+  global: { angle: 0 }
