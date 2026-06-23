@@ -54,6 +54,10 @@ function exposeVmFromStore() {
   return true;
 }
 
+if (typeof ReactDOM.render !== "function") {
+  throw new Error("React 16 required: ReactDOM.render is missing — do not bump React to 18/19 (see src/editor/EDITOR_VERSION.md).");
+}
+
 ReactDOM.render(
   React.createElement(WrappedGui, {
     ref: appRef,

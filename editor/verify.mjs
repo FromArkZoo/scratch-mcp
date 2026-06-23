@@ -25,7 +25,7 @@ await page
     () => Boolean(window.vm && window.vm.runtime) && window.__scratchReady === true,
     { timeout: 60000 }
   )
-  .catch(() => {});
+  .catch((e) => { console.error("waitForFunction did not resolve:", e.message); });
 
 const result = await page.evaluate(
   () => Boolean(window.vm?.runtime) && window.__scratchReady === true
