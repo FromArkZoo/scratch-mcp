@@ -119,3 +119,44 @@ test("unresolved variable in a reporter input is a fail-loud error", async () =>
   const { diagnostics } = await packageProject(project, new Map([["Cat", [bad]]]));
   expect(diagnostics.some((d) => d.severity === "error" && /ghost/.test(d.message))).toBe(true);
 });
+
+test("nested boolean operands encode as [2, childId] and an absent operand is omitted", async () => {
+  // if < <(1) < (2)> and <> > then {}   — OPERAND1 is a block, OPERAND2 is absent
+  const andScript: ParsedScript = { blocks: [
+    B("event_whenflagclicked"),
+    B("control_if",
+      { CONDITION: blk(B("operator_and", {
+          OPERAND1: blk(B("operator_lt", { OPERAND1: lit("1"), OPERAND2: lit("2") })),
+          // OPERAND2 intentionally absent
+        })) },
+      {},
+      { SUBSTACK: [] }),
+  ] };
+  const { sb3, diagnostics } = await packageProject(project, new Map([["Cat", [andScript]]]));
+  expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  const zip = await JSZip.loadAsync(sb3);
+  const pj = JSON.parse(await zip.file("project.json")!.async("string"));
+  const cat = pj.targets.find((t: any) => t.name === "Cat");
+  const andBlock = Object.values(cat.blocks).find((x: any) => x.opcode === "operator_and") as any;
+  expect(andBlock.inputs.OPERAND1[0]).toBe(2);                  // boolean slot holding a block
+  expect(typeof andBlock.inputs.OPERAND1[1]).toBe("string");    // child block id
+  expect(cat.blocks[andBlock.inputs.OPERAND1[1]].opcode).toBe("operator_lt");
+  expect(andBlock.inputs.OPERAND2).toBeUndefined();             // empty boolean → input omitted
+  await runHeadless(sb3);                                       // loads + runs without throwing
+});
+
+test("a menu input with no value falls back to the spec default", async () => {
+  const gotoNoVal: ParsedScript = { blocks: [
+    B("event_whenflagclicked"),
+    B("motion_goto"),   // TO input absent → should use spec.default "_random_"
+  ] };
+  const { sb3, diagnostics } = await packageProject(project, new Map([["Cat", [gotoNoVal]]]));
+  expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  const zip = await JSZip.loadAsync(sb3);
+  const pj = JSON.parse(await zip.file("project.json")!.async("string"));
+  const cat = pj.targets.find((t: any) => t.name === "Cat");
+  const gotoBlock = Object.values(cat.blocks).find((x: any) => x.opcode === "motion_goto") as any;
+  const menuId = gotoBlock.inputs.TO[1];
+  expect(gotoBlock.inputs.TO[0]).toBe(1);
+  expect(cat.blocks[menuId].fields.TO).toEqual(["_random_", null]);  // spec.default applied
+});
