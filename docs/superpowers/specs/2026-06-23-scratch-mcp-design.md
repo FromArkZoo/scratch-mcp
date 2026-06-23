@@ -213,3 +213,13 @@ Source text is canonical. If the user drags blocks in the live editor, that dive
 2. **TurboWarp build weight / version pinning** — biggest setup cost; mitigate by pinning a release and caching the build.
 3. **`window.vm` exposure** in the chosen build — proven in Phase 0.
 4. **Project location default** — currently `~/scratch-mcp` for the tool itself; user projects default to a `projects/` dir or a user-given path. (Note: an empty `~/SOFTWAREMCP` exists — confirm whether the project should live there instead.)
+
+## 15. Carry-forward decisions from the Phase-0 (live editor bridge) review
+
+The live-editor-bridge branch is merge-ready, but the whole-branch review surfaced three interface-design decisions to settle when writing the MCP-server / compiler plans — cheap now, expensive after the `ScratchEditor` interface is consumed:
+
+1. **Run-completion signal.** `run()` is fire-and-forget; the bridge tests currently settle via a fixed `setTimeout(1500)`. The MCP `run` tool needs a real "project idle" signal — scratch-vm emits `PROJECT_RUN_STOP` when all threads finish. Add `runUntilIdle()` (or have `run()` optionally await that event) in the MCP-server plan and drop the sleep. Decide before the interface is wrapped.
+2. **Per-sprite variable namespacing in `readState`.** `readState` flattens all targets' scalar variables into one name-keyed record, so a global and a same-named sprite-local collide. The MCP `read_state` tool should namespace sprite-locals (e.g. `sprites[].variables` alongside a global `variables`). Shape this when the tool is built.
+3. **Keep loud 404s.** The static server now returns real 404s for missing extension-ed assets (SPA fallback only for navigations); `copy-runtime-assets` still hardcodes its dir list, so a future scratch-gui runtime-asset addition will surface as a real failure rather than a silent `index.html` mask — preserve that 404 behavior.
+
+These are notes for the next plan, not blockers for Phase 0.
