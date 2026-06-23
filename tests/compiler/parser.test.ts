@@ -110,3 +110,12 @@ test("an unterminated c-block is a fail-loud diagnostic", () => {
   const { diagnostics } = parseScripts(src, "f", vars);
   expect(diagnostics.some((d) => d.severity === "error" && /end/.test(d.message))).toBe(true);
 });
+
+test("an else in a non-if c-block is a fail-loud diagnostic and sets no SUBSTACK2", () => {
+  const src = "when green flag clicked\nrepeat (3)\n  change [c v] by (1)\nelse\n  change [c v] by (2)\nend";
+  const { scripts, diagnostics } = parseScripts(src, "f", vars);
+  expect(diagnostics.some((d) => d.severity === "error" && /else/.test(d.message))).toBe(true);
+  const rep = scripts[0].blocks[1];
+  expect(rep.opcode).toBe("control_repeat");
+  expect(rep.substacks.SUBSTACK2).toBeUndefined();
+});

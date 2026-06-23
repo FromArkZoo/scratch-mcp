@@ -166,11 +166,18 @@ export function parseScripts(source: string, file: string, knownVars: Set<string
     const r1 = parseStack();
     block.substacks[firstSub] = r1.blocks;
     if (r1.closedBy === "else") {
-      if (block.opcode === "control_if") block.opcode = "control_if_else";
-      const r2 = parseStack();
-      block.substacks["SUBSTACK2"] = r2.blocks;
-      if (r2.closedBy !== "end")
-        diagnostics.push({ file, line: openLine, severity: "error", message: `c-block opened but no matching "end" before end of file` });
+      if (block.opcode === "control_if") {
+        block.opcode = "control_if_else";
+        const r2 = parseStack();
+        block.substacks["SUBSTACK2"] = r2.blocks;
+        if (r2.closedBy !== "end")
+          diagnostics.push({ file, line: openLine, severity: "error", message: `c-block opened but no matching "end" before end of file` });
+      } else {
+        diagnostics.push({ file, line: openLine, severity: "error", message: `unexpected "else": "${block.opcode}" is not an if-block` });
+        const r2 = parseStack();   // recover: consume the stray else-body up to its "end"
+        if (r2.closedBy !== "end")
+          diagnostics.push({ file, line: openLine, severity: "error", message: `c-block opened but no matching "end" before end of file` });
+      }
     } else if (r1.closedBy !== "end") {
       diagnostics.push({ file, line: openLine, severity: "error", message: `c-block opened but no matching "end" before end of file` });
     }
