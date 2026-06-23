@@ -1,0 +1,14 @@
+when green flag clicked
+set [r v] to ((3) + (4))
+if <(1) > (2)> then
+  change [b v] by (1)
+else
+  set [b v] to (9)
+end
+repeat until <(c) = (5)>
+  change [c v] by (1)
+end
+set [m v] to ([abs v] of (-5))
+if <<(1) < (2)> and <not <(3) < (1)>>> then
+  set [k v] to (1)
+end
