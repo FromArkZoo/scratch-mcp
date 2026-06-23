@@ -143,34 +143,49 @@ export function parseScripts(source: string, file: string, knownVars: Set<string
   const lines = source.split("\n").map((raw, i) => ({ raw: raw.trim(), line: i + 1 })).filter((l) => l.raw.length > 0);
   let pos = 0;
 
-  // Collect statements until `end` (consumed) or EOF/new-hat (not consumed).
-  // Single-substack c-blocks (repeat/forever/if/repeat until) recurse here via `end`.
-  // Task 6 extends this to handle `else` (two substacks) + the unterminated-c-block diagnostic.
-  function parseStack(): ParsedBlock[] {
+  type Closed = "end" | "else" | "eof";
+
+  // Collect statements until `end` (consumed), `else` (consumed), a new hat (not consumed), or EOF.
+  function parseStack(): { blocks: ParsedBlock[]; closedBy: Closed } {
     const out: ParsedBlock[] = [];
     while (pos < lines.length) {
       const { raw, line } = lines[pos];
-      if (raw === "end") { pos++; return out; }
+      if (raw === "end") { pos++; return { blocks: out, closedBy: "end" }; }
+      if (raw === "else") { pos++; return { blocks: out, closedBy: "else" }; }
       const m = matchStatement(raw, line, ctx);
       if (!m) { diagnostics.push({ file, line, severity: "error", message: `unknown block "${raw}"` }); pos++; continue; }
-      if (m.def.shape === "hat") return out;                 // new hat: stop, do not consume
+      if (m.def.shape === "hat") return { blocks: out, closedBy: "eof" }; // new hat: stop, do not consume
       pos++;
-      if (m.def.shape === "c") {
-        const sub = m.def.substacks?.[0] ?? "SUBSTACK";
-        m.block.substacks[sub] = parseStack();
-      }
-      out.push(m.block);
+      out.push(m.def.shape === "c" ? parseCBlock(m.def, m.block, line) : m.block);
     }
-    return out;
+    return { blocks: out, closedBy: "eof" };
+  }
+
+  function parseCBlock(def: BlockDef, block: ParsedBlock, openLine: number): ParsedBlock {
+    const firstSub = def.substacks?.[0] ?? "SUBSTACK";
+    const r1 = parseStack();
+    block.substacks[firstSub] = r1.blocks;
+    if (r1.closedBy === "else") {
+      if (block.opcode === "control_if") block.opcode = "control_if_else";
+      const r2 = parseStack();
+      block.substacks["SUBSTACK2"] = r2.blocks;
+      if (r2.closedBy !== "end")
+        diagnostics.push({ file, line: openLine, severity: "error", message: `c-block opened but no matching "end" before end of file` });
+    } else if (r1.closedBy !== "end") {
+      diagnostics.push({ file, line: openLine, severity: "error", message: `c-block opened but no matching "end" before end of file` });
+    }
+    return block;
   }
 
   const scripts: ParsedScript[] = [];
   while (pos < lines.length) {
     const { raw, line } = lines[pos];
+    if (raw === "end" || raw === "else") { diagnostics.push({ file, line, severity: "error", message: `unexpected "${raw}"` }); pos++; continue; }
     const m = matchStatement(raw, line, ctx);
     if (!m || m.def.shape !== "hat") { diagnostics.push({ file, line, severity: "error", message: `script must start with a hat block, got "${raw}"` }); pos++; continue; }
     pos++;
-    scripts.push({ blocks: [m.block, ...parseStack()] });
+    const r = parseStack();
+    scripts.push({ blocks: [m.block, ...r.blocks] });
   }
   return { scripts, diagnostics };
 }

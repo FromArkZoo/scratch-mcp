@@ -68,3 +68,45 @@ test("a multi-word known variable in a round slot becomes a variable reporter", 
   expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
   expect(scripts[0].blocks[1].inputs.VALUE).toEqual({ kind: "variable", name: "my score" });
 });
+
+test("parses repeat with a substack", () => {
+  const src = "when green flag clicked\nrepeat (3)\n  change [c v] by (1)\nend";
+  const { scripts, diagnostics } = parseScripts(src, "f", vars);
+  expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  const rep = scripts[0].blocks[1];
+  expect(rep.opcode).toBe("control_repeat");
+  expect(rep.substacks.SUBSTACK.map((x) => x.opcode)).toEqual(["data_changevariableby"]);
+});
+
+test("parses if/else into control_if_else with two substacks and a boolean condition", () => {
+  const src = "when green flag clicked\nif <(1) > (2)> then\n  change [c v] by (1)\nelse\n  change [c v] by (2)\nend";
+  const { scripts, diagnostics } = parseScripts(src, "f", vars);
+  expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  const ie = scripts[0].blocks[1];
+  expect(ie.opcode).toBe("control_if_else");
+  expect(ie.inputs.CONDITION.kind).toBe("block");
+  expect(ie.substacks.SUBSTACK.map((x) => x.opcode)).toEqual(["data_changevariableby"]);
+  expect(ie.substacks.SUBSTACK2.map((x) => x.opcode)).toEqual(["data_changevariableby"]);
+});
+
+test("a plain if (no else) is control_if with one substack", () => {
+  const src = "when green flag clicked\nif <(1) > (2)> then\n  change [c v] by (1)\nend";
+  const { scripts } = parseScripts(src, "f", vars);
+  expect(scripts[0].blocks[1].opcode).toBe("control_if");
+  expect(scripts[0].blocks[1].substacks.SUBSTACK2).toBeUndefined();
+});
+
+test("parses repeat until with a boolean condition and nesting", () => {
+  const src = "when green flag clicked\nrepeat until <(c) = (5)>\n  change [c v] by (1)\nend";
+  const { scripts, diagnostics } = parseScripts(src, "f", vars);
+  expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  const ru = scripts[0].blocks[1];
+  expect(ru.opcode).toBe("control_repeat_until");
+  expect(ru.inputs.CONDITION.kind).toBe("block");
+});
+
+test("an unterminated c-block is a fail-loud diagnostic", () => {
+  const src = "when green flag clicked\nrepeat (3)\n  change [c v] by (1)";
+  const { diagnostics } = parseScripts(src, "f", vars);
+  expect(diagnostics.some((d) => d.severity === "error" && /end/.test(d.message))).toBe(true);
+});
