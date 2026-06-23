@@ -23,7 +23,12 @@ export async function serveDir(root: string, port = 0): Promise<StaticServer> {
       try {
         if ((await stat(filePath)).isDirectory()) filePath = join(filePath, "index.html");
       } catch {
-        filePath = join(root, "index.html"); // SPA fallback
+        // SPA fallback ONLY for extension-less navigations; real asset paths must 404 loudly
+        if (extname(rawPath) !== "") {
+          res.statusCode = 404;
+          return res.end("not found");
+        }
+        filePath = join(root, "index.html");
       }
       const body = await readFile(filePath);
       res.setHeader("Content-Type", MIME[extname(filePath)] ?? "application/octet-stream");
