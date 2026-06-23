@@ -1,0 +1,8 @@
+name: Grammar
+sprites:
+  - name: Cat
+    source: cat.sprite.scratch
+    x: 0
+    y: 0
+variables:
+  global: { r: 0, b: 0, c: 0, m: 0, k: 0 }

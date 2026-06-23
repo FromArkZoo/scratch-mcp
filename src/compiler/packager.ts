@@ -2,7 +2,8 @@
 import JSZip from "jszip";
 import { byOpcode } from "./blocks/registry.js";
 import { generatePlaceholderCostume } from "./placeholder.js";
-import type { Diagnostic, ParsedBlock, ParsedScript, Project } from "./types.js";
+import type { Diagnostic, InputValue, ParsedBlock, ParsedScript, Project } from "./types.js";
+import type { BlockDef, InputSpec } from "./blocks/types.js";
 
 const COSTUME_BASE = { bitmapResolution: 1, dataFormat: "svg", rotationCenterX: 50, rotationCenterY: 50 };
 
@@ -32,6 +33,74 @@ export async function packageProject(
     const nextId = () => `blk-${++idCounter}`;
     const scripts = scriptsByTarget.get(target.name) ?? [];
 
+    const emitInput = (parentId: string, spec: InputSpec, value: InputValue | undefined): any => {
+      // substack guard: satisfies type narrowing so spec.shadowType is reachable below
+      if (spec.kind === "substack") return undefined;
+      // boolean slot: a block or nothing
+      if (spec.kind === "boolean") {
+        if (value && value.kind === "block") return [2, emitBlock(value.block, parentId)];
+        return undefined; // empty boolean → caller omits the input
+      }
+      // menu slot: generate a shadow menu block
+      if (spec.kind === "menu") {
+        const sel = value && value.kind === "menu" ? value.value : spec.default;
+        const mid = nextId();
+        blocks[mid] = { opcode: spec.menuOpcode, next: null, parent: parentId,
+          inputs: {}, fields: { [spec.field]: [sel, null] }, shadow: true, topLevel: false };
+        return [1, mid];
+      }
+      // number/text slot: literal, variable primitive, or nested reporter obscuring a shadow
+      const st = spec.shadowType;
+      if (!value || value.kind === "literal") {
+        return [1, [st, value && value.kind === "literal" ? value.value : ""]];
+      }
+      if (value.kind === "variable") {
+        const id = resolveVar(value.name);
+        if (!id) diagnostics.push({ file: target.sourceFile ?? target.name, line: 0, severity: "error",
+          message: `unresolved variable "${value.name}"` });
+        return [3, [12, value.name, id ?? ""], [st, ""]];
+      }
+      // value.kind === "block" (menu was already handled in the menu branch above)
+      if (value.kind === "block") return [3, emitBlock(value.block, parentId), [st, ""]];
+      return [1, [st, ""]];
+    };
+
+    // emitBlock emits a single (possibly nested) reporter/boolean block and returns its id.
+    const emitBlock = (b: ParsedBlock, parentId: string): string => {
+      const id = nextId();
+      const def = byOpcode.get(b.opcode);
+      const entry: any = { opcode: b.opcode, next: null, parent: parentId,
+        inputs: {}, fields: {}, shadow: false, topLevel: false };
+      if (!def) {
+        diagnostics.push({ file: target.sourceFile ?? target.name, line: 0, severity: "error",
+          message: `unknown opcode "${b.opcode}"` });
+      } else {
+        for (const [nm, ispec] of Object.entries(def.inputs ?? {})) {
+          if (ispec.kind === "substack") continue;
+          const enc = emitInput(id, ispec, b.inputs[nm]);
+          if (enc !== undefined) entry.inputs[nm] = enc;
+        }
+        emitFields(def, b, entry);
+      }
+      blocks[id] = entry;
+      return id;
+    };
+
+    // emitFields handles variable fields ([name,id]) and dropdown fields ([value,null]).
+    const emitFields = (def: BlockDef, b: ParsedBlock, entry: any): void => {
+      for (const [nm, fspec] of Object.entries(def.fields ?? {})) {
+        if (fspec.kind === "variable") {
+          const vname = b.fields[nm] ?? "";
+          const vid = resolveVar(vname);
+          if (!vid) diagnostics.push({ file: target.sourceFile ?? target.name, line: 0, severity: "error",
+            message: `unresolved variable "${vname}"` });
+          entry.fields[nm] = [vname, vid ?? ""];
+        } else { // dropdown
+          entry.fields[nm] = [b.fields[nm] ?? "", null];
+        }
+      }
+    };
+
     const emitStack = (list: ParsedBlock[], parentForFirst: string | null, topLevel: boolean, hatXY: { x: number; y: number }): string | null => {
       let firstId: string | null = null;
       let prevId: string | null = null;
@@ -46,23 +115,16 @@ export async function packageProject(
         };
         if (entry.topLevel) { entry.x = hatXY.x; entry.y = hatXY.y; }
         if (def) {
-          for (const [nm, spec] of Object.entries(def.inputs ?? {})) {
-            if (spec.kind === "substack") continue;
-            const v = b.inputs[nm]?.value ?? "";
-            entry.inputs[nm] = [1, [spec.shadowType ?? 4, v]];
+          for (const [nm, ispec] of Object.entries(def.inputs ?? {})) {
+            if (ispec.kind === "substack") continue;
+            const enc = emitInput(id, ispec, b.inputs[nm]);
+            if (enc !== undefined) entry.inputs[nm] = enc;
           }
-          if (def.substack) {
-            const kids = b.substacks[def.substack] ?? [];
-            if (kids.length) entry.inputs[def.substack] = [2, emitStack(kids, id, false, hatXY)];
+          for (const sub of def.substacks ?? []) {
+            const kids = b.substacks[sub] ?? [];
+            if (kids.length) entry.inputs[sub] = [2, emitStack(kids, id, false, hatXY)];
           }
-          for (const [nm, fspec] of Object.entries(def.fields ?? {})) {
-            if (fspec.kind === "variable") {
-              const vname = b.fields[nm] ?? "";
-              const vid = resolveVar(vname);
-              if (!vid) diagnostics.push({ file: target.sourceFile ?? target.name, line: 0, severity: "error", message: `unresolved variable "${vname}"` });
-              entry.fields[nm] = [vname, vid ?? ""];
-            }
-          }
+          emitFields(def, b, entry);
         } else {
           diagnostics.push({ file: target.sourceFile ?? target.name, line: 0, severity: "error", message: `unknown opcode "${b.opcode}"` });
         }
