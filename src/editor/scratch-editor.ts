@@ -6,12 +6,17 @@ import { serveDir, type StaticServer } from "./static-server.js";
 const here = dirname(fileURLToPath(import.meta.url));
 const EDITOR_DIST = resolve(here, "../../editor/dist");
 
+export type ScalarMap = Record<string, string | number | boolean>;
+export type ListMap = Record<string, (string | number | boolean)[]>;
 export interface SpriteState {
   name: string; x: number; y: number; direction: number;
   visible: boolean; size: number; costume: number;
+  variables: ScalarMap;   // this sprite's locals
+  lists: ListMap;         // this sprite's local lists
 }
 export interface ProjectState {
-  variables: Record<string, string | number | boolean>;
+  variables: ScalarMap;   // Stage/global scalars
+  lists: ListMap;         // Stage/global lists
   sprites: SpriteState[];
 }
 export interface LaunchOptions { headless?: boolean; port?: number; }
@@ -54,24 +59,41 @@ export class ScratchEditor {
     return this.page.evaluate(() => {
       const vm = (window as any).vm;
       const targets = vm.runtime.targets as any[];
-      const variables: Record<string, string | number | boolean> = {};
-      const sprites: any[] = [];
-      for (const t of targets) {
-        if (!t || t.isOriginal === false) continue; // skip clones
+      const scalarsOf = (t: any) => {
+        const out: Record<string, any> = {};
         for (const id of Object.keys(t.variables ?? {})) {
           const v = t.variables[id];
-          if (v && v.type === "" /* scalar */) variables[v.name] = v.value;
+          if (v && v.type === "") out[v.name] = v.value;        // scalar
         }
-        if (!t.isStage) {
+        return out;
+      };
+      const listsOf = (t: any) => {
+        const out: Record<string, any> = {};
+        for (const id of Object.keys(t.variables ?? {})) {
+          const v = t.variables[id];
+          if (v && v.type === "list") out[v.name] = v.value;    // list
+        }
+        return out;
+      };
+      let variables: Record<string, any> = {};
+      let lists: Record<string, any> = {};
+      const sprites: any[] = [];
+      for (const t of targets) {
+        if (!t || t.isOriginal === false) continue;             // skip clones
+        if (t.isStage) {
+          variables = scalarsOf(t);
+          lists = listsOf(t);
+        } else {
           sprites.push({
             name: t.sprite?.name ?? t.getName?.() ?? "",
             x: t.x, y: t.y, direction: t.direction,
-            visible: t.visible, size: t.size,
-            costume: t.currentCostume,
+            visible: t.visible, size: t.size, costume: t.currentCostume,
+            variables: scalarsOf(t),
+            lists: listsOf(t),
           });
         }
       }
-      return { variables, sprites };
+      return { variables, lists, sprites };
     });
   }
 
