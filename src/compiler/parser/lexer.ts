@@ -30,9 +30,10 @@ export function tokenizeLine(line: string): Tok[] {
       else out.push({ t: "text", v: inner.trim() });
       continue;
     }
+    if (ch === "]") { out.push({ t: "word", v: "]" }); i++; continue; }
     // a bare word: run until whitespace or a structural char
     let j = i;
-    while (j < s.length && !" \t()<>[".includes(s[j])) j++;
+    while (j < s.length && !" \t()<>[]".includes(s[j])) j++;
     out.push({ t: "word", v: s.slice(i, j) });
     i = j;
   }

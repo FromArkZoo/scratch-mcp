@@ -7,4 +7,5 @@ export const MOTION: BlockDef[] = [
     inputs: { DEGREES: { kind: "number", shadowType: 4 } } },
   { signature: "go to [TO v]", opcode: "motion_goto", shape: "stack",
     inputs: { TO: { kind: "menu", menuOpcode: "motion_goto_menu", field: "TO", default: "_random_" } } },
+  { signature: "direction", opcode: "motion_direction", shape: "reporter" },
 ];
