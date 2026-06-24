@@ -1,0 +1,10 @@
+name: Palette
+sprites:
+  - name: Cat
+    source: cat.sprite.scratch
+    x: 0
+    y: 0
+variables:
+  global: { v: 0, n: 0 }
+lists:
+  global: { inventory: [] }
