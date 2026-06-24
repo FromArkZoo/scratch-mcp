@@ -28,12 +28,21 @@ export async function packageProject(
   const stageVarIds = new Map<string, string>();
   for (const v of stage.variables) stageVarIds.set(v.name, `var-${++varCounter}`);
 
+  let listCounter = 0;
+  const stageListIds = new Map<string, string>();
+  for (const l of stage.lists ?? []) stageListIds.set(l.name, `list-${++listCounter}`);
+
   const targetsJson: any[] = [];
   for (const target of project.targets) {
     const ownVarIds = new Map<string, string>();
     if (!target.isStage) for (const v of target.variables) ownVarIds.set(v.name, `var-${++varCounter}`);
     const resolveVar = (name: string): string | undefined =>
       ownVarIds.get(name) ?? stageVarIds.get(name);
+
+    const ownListIds = new Map<string, string>();
+    if (!target.isStage) for (const l of target.lists ?? []) ownListIds.set(l.name, `list-${++listCounter}`);
+    const resolveList = (name: string): string | undefined =>
+      ownListIds.get(name) ?? stageListIds.get(name);
 
     // block emission
     const blocks: Record<string, any> = {};
@@ -68,6 +77,12 @@ export async function packageProject(
         if (!id) diagnostics.push({ file: target.sourceFile ?? target.name, line: 0, severity: "error",
           message: `unresolved variable "${value.name}"` });
         return [3, [12, value.name, id ?? ""], [st, ""]];
+      }
+      if (value.kind === "list") {
+        const id = resolveList(value.name);
+        if (!id) diagnostics.push({ file: target.sourceFile ?? target.name, line: 0, severity: "error",
+          message: `unresolved list "${value.name}"` });
+        return [3, [13, value.name, id ?? ""], [st, ""]];
       }
       // value.kind === "block" (menu was already handled in the menu branch above)
       if (value.kind === "block") return [3, emitBlock(value.block, parentId), [st, ""]];
@@ -108,7 +123,13 @@ export async function packageProject(
         } else if (fspec.kind === "broadcast") {
           const bname = b.fields[nm] ?? "";
           entry.fields[nm] = [bname, resolveBroadcast(bname)];
-        } else { // dropdown (list handled in Task 4)
+        } else if (fspec.kind === "list") {
+          const lname = b.fields[nm] ?? "";
+          const lid = resolveList(lname);
+          if (!lid) diagnostics.push({ file: target.sourceFile ?? target.name, line: 0, severity: "error",
+            message: `unresolved list "${lname}"` });
+          entry.fields[nm] = [lname, lid ?? ""];
+        } else { // dropdown
           entry.fields[nm] = [b.fields[nm] ?? "", null];
         }
       }
@@ -160,9 +181,13 @@ export async function packageProject(
     const vmap = target.isStage ? stageVarIds : ownVarIds;
     for (const v of target.variables) variablesJson[vmap.get(v.name)!] = [v.name, v.value];
 
+    const listsJson: Record<string, [string, (string | number)[]]> = {};
+    const lmap = target.isStage ? stageListIds : ownListIds;
+    for (const l of target.lists ?? []) listsJson[lmap.get(l.name)!] = [l.name, l.value];
+
     const base = {
       isStage: target.isStage, name: target.name,
-      variables: variablesJson, lists: {}, broadcasts: {}, blocks, comments: {},
+      variables: variablesJson, lists: listsJson, broadcasts: {}, blocks, comments: {},
       currentCostume: 0,
       costumes: [{ ...COSTUME_BASE, name: costume.name, assetId: costume.md5, md5ext: costume.md5ext }],
       sounds: [], volume: 100, layerOrder: target.isStage ? 0 : 1,

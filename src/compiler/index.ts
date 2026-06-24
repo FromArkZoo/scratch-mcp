@@ -20,13 +20,15 @@ export async function compileProject(dir: string): Promise<CompileResult> {
   const scriptsByTarget = new Map<string, ParsedScript[]>();
   const stage = project.targets.find((t) => t.isStage);
   const globalNames = stage ? stage.variables.map((v) => v.name) : [];
+  const globalListNames = stage ? (stage.lists ?? []).map((l) => l.name) : [];
   for (const t of project.targets) {
     if (!t.sourceFile) continue;
     let src: string;
     try { src = await readFile(join(dir, t.sourceFile), "utf8"); }
     catch { diagnostics.push({ file: t.sourceFile, line: 0, severity: "error", message: `source file not found: ${t.sourceFile}` }); continue; }
     const knownVars = new Set<string>([...t.variables.map((v) => v.name), ...globalNames]);
-    const { scripts, diagnostics: pd } = parseScripts(src, t.sourceFile, knownVars);
+    const knownLists = new Set<string>([...(t.lists ?? []).map((l) => l.name), ...globalListNames]);
+    const { scripts, diagnostics: pd } = parseScripts(src, t.sourceFile, knownVars, knownLists);
     diagnostics.push(...pd);
     scriptsByTarget.set(t.name, scripts);
   }

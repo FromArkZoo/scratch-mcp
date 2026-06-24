@@ -5,7 +5,7 @@ test("slice covers the expected opcodes", () => {
   const opcodes = SLICE.map((d) => d.opcode).sort();
   expect(opcodes).toEqual([
     "control_forever", "control_if", "control_if_else", "control_repeat", "control_repeat_until",
-    "data_changevariableby", "data_setvariableto",
+    "data_addtolist", "data_changevariableby", "data_itemoflist", "data_setvariableto",
     "event_broadcast", "event_broadcastandwait", "event_whenbroadcastreceived", "event_whenflagclicked",
     "motion_goto", "motion_movesteps", "motion_turnright",
     "music_restForBeats",

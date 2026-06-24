@@ -63,4 +63,9 @@ export const SLICE: BlockDef[] = [
     inputs: { BROADCAST_INPUT: { kind: "menu", menuOpcode: "event_broadcast_menu", field: "BROADCAST_OPTION", default: "message1", broadcast: true } } },
   { signature: "when I receive [BROADCAST_OPTION v]", opcode: "event_whenbroadcastreceived", shape: "hat",
     fields: { BROADCAST_OPTION: { kind: "broadcast" } } },
+  // ---- lists (data) — proving slice; full list palette is Sub-project B ----
+  { signature: "add [ITEM] to [LIST v]", opcode: "data_addtolist", shape: "stack",
+    inputs: { ITEM: { kind: "text", shadowType: 10 } }, fields: { LIST: { kind: "list" } } },
+  { signature: "item (INDEX) of [LIST v]", opcode: "data_itemoflist", shape: "reporter",
+    inputs: { INDEX: { kind: "number", shadowType: 7 } }, fields: { LIST: { kind: "list" } } },
 ];
