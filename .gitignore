@@ -8,3 +8,6 @@ dist/
 # Self-hosted editor (Task 2): built bundle + deps are not committed.
 editor/dist/
 editor/node_modules/
+
+# Local scratch output (not part of the repo).
+artifacts/
