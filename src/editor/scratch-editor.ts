@@ -88,8 +88,24 @@ export class ScratchEditor {
     }, b64);
   }
 
-  async run(): Promise<void> {
-    await this.page.evaluate(() => (window as any).vm.greenFlag());
+  async run(opts: { waitMs?: number } = {}): Promise<{ idle: boolean }> {
+    const waitMs = opts.waitMs ?? 10_000;
+    // Arm a one-shot PROJECT_RUN_STOP listener, reset the flag, then green-flag.
+    await this.page.evaluate(() => {
+      const vm = (window as any).vm;
+      (window as any).__scratchRunDone = false;
+      vm.runtime.once("PROJECT_RUN_STOP", () => { (window as any).__scratchRunDone = true; });
+      vm.greenFlag();
+    });
+    try {
+      await this.page.waitForFunction(
+        () => (window as any).__scratchRunDone === true,
+        { timeout: waitMs },
+      );
+      return { idle: true };
+    } catch {
+      return { idle: false }; // timed out — e.g. a forever loop never goes idle
+    }
   }
 
   async stop(): Promise<void> {
