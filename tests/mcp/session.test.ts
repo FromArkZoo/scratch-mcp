@@ -38,3 +38,14 @@ test("getEditor launches once and is reused; dispose closes it", async () => {
   expect(s.hasEditor()).toBe(false);
   spy.mockRestore();
 });
+
+test("concurrent getEditor calls launch the editor only once", async () => {
+  const fake = { close: vi.fn().mockResolvedValue(undefined) } as unknown as ScratchEditor;
+  const spy = vi.spyOn(ScratchEditor, "launch").mockResolvedValue(fake);
+  const s = new Session();
+  const [a, b] = await Promise.all([s.getEditor(), s.getEditor()]);
+  expect(a).toBe(b);
+  expect(spy).toHaveBeenCalledTimes(1);
+  await s.dispose();
+  spy.mockRestore();
+});

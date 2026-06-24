@@ -5,7 +5,7 @@ import { ScratchEditor } from "../editor/scratch-editor.js";
 
 export class Session {
   private activeProjectDir: string | null = null;
-  private editor: ScratchEditor | null = null;
+  private editorPromise: Promise<ScratchEditor> | null = null;
 
   async openProject(path: string): Promise<string> {
     const dir = resolve(path);
@@ -22,16 +22,23 @@ export class Session {
   }
 
   async getEditor(): Promise<ScratchEditor> {
-    if (!this.editor) {
+    if (!this.editorPromise) {
       const headless = process.env.SCRATCH_MCP_HEADLESS === "1";
-      this.editor = await ScratchEditor.launch({ headless });
+      this.editorPromise = ScratchEditor.launch({ headless }).catch((e) => {
+        this.editorPromise = null;   // allow a retry after a failed launch
+        throw e;
+      });
     }
-    return this.editor;
+    return this.editorPromise;
   }
 
-  hasEditor(): boolean { return this.editor !== null; }
+  hasEditor(): boolean { return this.editorPromise !== null; }
 
   async dispose(): Promise<void> {
-    if (this.editor) { await this.editor.close().catch(() => {}); this.editor = null; }
+    if (this.editorPromise) {
+      const ed = await this.editorPromise.catch(() => null);
+      this.editorPromise = null;
+      if (ed) await ed.close().catch(() => {});
+    }
   }
 }
