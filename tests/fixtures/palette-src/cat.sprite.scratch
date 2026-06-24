@@ -1,0 +1,21 @@
+when green flag clicked
+move (10) steps
+set x to (5)
+say [hi] for (0) seconds
+set size to (120) %
+set [color v] effect to (25)
+change volume by (-10)
+set [pitch v] effect to (100)
+switch costume to [costume1 v]
+add [a] to [inventory v]
+set [n v] to (item (1) of [inventory v])
+set [v v] to ((3) + (4))
+set pen size to (2)
+erase all
+rest for (0.1) beats
+broadcast [go v]
+if <(1) = (1)> then
+change [v v] by (1)
+end
+when I receive [go v]
+set [v v] to (timer)

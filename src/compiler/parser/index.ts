@@ -23,7 +23,19 @@ function sigTokens(sig: string): SigTok[] {
   }
   return out;
 }
-const SIGS: { def: BlockDef; toks: SigTok[] }[] = SLICE.map((def) => ({ def, toks: sigTokens(def.signature) }));
+const litCount = (toks: SigTok[]): number => toks.filter((t) => "lit" in t).length;
+// More-literal (more specific) signatures are tried first, so a literal token beats a round/square hole
+// that would otherwise absorb the same bare word (e.g. "delete all of [L v]" wins over "delete (N) of [L v]").
+// V8 sort is stable, so equal-specificity defs keep SLICE order (and the options tiebreak handles those).
+const SIGS: { def: BlockDef; toks: SigTok[] }[] = SLICE.filter((def) => !def.synthetic)
+  .map((def) => ({ def, toks: sigTokens(def.signature) }))
+  .sort((a, b) => litCount(b.toks) - litCount(a.toks));
+
+// Zero-arg reporters (signature is all literal words) — resolve a bare single-word `(name)` to the reporter block.
+const ZERO_ARG_REPORTERS = new Map<string, BlockDef>(
+  SLICE.filter((d) => d.shape === "reporter" && sigTokens(d.signature).every((t) => "lit" in t))
+       .map((d) => [d.signature, d]),
+);
 
 // A parsed signature hole's captured value: a token sub-stream.
 type Group = { kind: "round" | "boolean"; toks: Tok[] } | { kind: "menu"; v: string } | { kind: "text"; v: string } | { kind: "word"; v: string };
@@ -67,7 +79,11 @@ function parseRound(g: Group, line: number, ctx: ParseCtx): InputValue {
       if (ctx.knownLists.has(w)) return { kind: "list", name: w };
       // a single bare unknown word stays a lenient (string) literal;
       // a multi-word non-variable run falls through to reporter matching (preserves unbracketed-infix)
-      if (gs.length === 1) return { kind: "literal", value: w };
+      if (gs.length === 1) {
+        const zr = ZERO_ARG_REPORTERS.get(w);
+        if (zr) return { kind: "block", block: { opcode: zr.opcode, inputs: {}, fields: {}, substacks: {} } };
+        return { kind: "literal", value: w };
+      }
     }
     const blk = matchGroups(gs, line, ctx, "reporter");
     if (blk) return { kind: "block", block: blk };
@@ -95,6 +111,14 @@ function parseBoolean(g: Group, line: number, ctx: ParseCtx): InputValue | undef
   return { kind: "block", block: blk };
 }
 
+/** A dropdown field carrying `options` matches only when the authored value is in the set (disambiguates same-skeleton defs). */
+function optionsOk(def: BlockDef, block: ParsedBlock): boolean {
+  for (const [nm, fspec] of Object.entries(def.fields ?? {}))
+    if (fspec.kind === "dropdown" && fspec.options && !fspec.options.includes(block.fields[nm] ?? ""))
+      return false;
+  return true;
+}
+
 /** Match a top-level group list against the dictionary, returning a ParsedBlock (reporters/booleans). */
 function matchGroups(gs: Group[], line: number, ctx: ParseCtx, want: "reporter" | "boolean" | "any"): ParsedBlock | null {
   outer: for (const { def, toks } of SIGS) {
@@ -109,6 +133,7 @@ function matchGroups(gs: Group[], line: number, ctx: ParseCtx, want: "reporter" 
       else if (st.hole === "menu") { if (g.kind !== "menu") continue outer; if (def.fields?.[st.name]) block.fields[st.name] = g.v; else block.inputs[st.name] = { kind: "menu", value: g.v }; }
       else if (st.hole === "square") { if (g.kind !== "text" && g.kind !== "menu") continue outer; if (def.fields?.[st.name]) block.fields[st.name] = g.v; else block.inputs[st.name] = { kind: "literal", value: g.v }; }  // a [VARIABLE] field accepts [x] or [x v]
     }
+    if (!optionsOk(def, block)) continue outer;
     return block;
   }
   return null;
@@ -133,6 +158,7 @@ function matchStatement(line: string, lineNo: number, ctx: ParseCtx): { def: Blo
       else if (st.hole === "menu") { if (g.kind !== "menu") continue outer; if (def.fields?.[st.name]) block.fields[st.name] = g.v; else block.inputs[st.name] = { kind: "menu", value: g.v }; }
       else if (st.hole === "square") { if (g.kind !== "text" && g.kind !== "menu") continue outer; if (def.fields?.[st.name]) block.fields[st.name] = g.v; else block.inputs[st.name] = { kind: "literal", value: g.v }; }  // a [VARIABLE] field accepts [x] or [x v]
     }
+    if (!optionsOk(def, block)) continue outer;
     return { def, block };
   }
   return null;

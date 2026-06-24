@@ -13,7 +13,7 @@ export type FieldSpec =
   | { kind: "variable" }                                                      // resolves to [name, id]
   | { kind: "broadcast" }                                                     // resolves to [name, broadcastId]
   | { kind: "list" }                                                          // resolves to [name, listId]
-  | { kind: "dropdown" };                                                     // option string stored directly on the block
+  | { kind: "dropdown"; options?: string[] };                                 // option string stored on the block; options[] = disambiguation + fail-loud validation
 
 export interface BlockDef {
   signature: string;                       // "move (STEPS) steps", "() + ()", "if <CONDITION> then"
@@ -22,4 +22,5 @@ export interface BlockDef {
   inputs?: Record<string, InputSpec>;
   fields?: Record<string, FieldSpec>;
   substacks?: string[];                    // [] | ["SUBSTACK"] | ["SUBSTACK","SUBSTACK2"]
+  synthetic?: boolean;                     // constructed dynamically (control_if_else); excluded from source-line matching
 }

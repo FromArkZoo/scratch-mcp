@@ -1,0 +1,25 @@
+import type { BlockDef } from "../types.js";
+
+export const MOTION: BlockDef[] = [
+  { signature: "move (STEPS) steps", opcode: "motion_movesteps", shape: "stack",
+    inputs: { STEPS: { kind: "number", shadowType: 4 } } },
+  { signature: "turn right (DEGREES) degrees", opcode: "motion_turnright", shape: "stack",
+    inputs: { DEGREES: { kind: "number", shadowType: 4 } } },
+  { signature: "go to [TO v]", opcode: "motion_goto", shape: "stack",
+    inputs: { TO: { kind: "menu", menuOpcode: "motion_goto_menu", field: "TO", default: "_random_" } } },
+  { signature: "direction", opcode: "motion_direction", shape: "reporter" },
+  { signature: "turn left (DEGREES) degrees", opcode: "motion_turnleft", shape: "stack", inputs: { DEGREES: { kind: "number", shadowType: 4 } } },
+  { signature: "point in direction (DIRECTION)", opcode: "motion_pointindirection", shape: "stack", inputs: { DIRECTION: { kind: "number", shadowType: 8 } } },
+  { signature: "point towards [TOWARDS v]", opcode: "motion_pointtowards", shape: "stack", inputs: { TOWARDS: { kind: "menu", menuOpcode: "motion_pointtowards_menu", field: "TOWARDS", default: "_mouse_" } } },
+  { signature: "go to x: (X) y: (Y)", opcode: "motion_gotoxy", shape: "stack", inputs: { X: { kind: "number", shadowType: 4 }, Y: { kind: "number", shadowType: 4 } } },
+  { signature: "glide (SECS) secs to x: (X) y: (Y)", opcode: "motion_glidesecstoxy", shape: "stack", inputs: { SECS: { kind: "number", shadowType: 4 }, X: { kind: "number", shadowType: 4 }, Y: { kind: "number", shadowType: 4 } } },
+  { signature: "glide (SECS) secs to [TO v]", opcode: "motion_glideto", shape: "stack", inputs: { SECS: { kind: "number", shadowType: 4 }, TO: { kind: "menu", menuOpcode: "motion_glideto_menu", field: "TO", default: "_random_" } } },
+  { signature: "change x by (DX)", opcode: "motion_changexby", shape: "stack", inputs: { DX: { kind: "number", shadowType: 4 } } },
+  { signature: "set x to (X)", opcode: "motion_setx", shape: "stack", inputs: { X: { kind: "number", shadowType: 4 } } },
+  { signature: "change y by (DY)", opcode: "motion_changeyby", shape: "stack", inputs: { DY: { kind: "number", shadowType: 4 } } },
+  { signature: "set y to (Y)", opcode: "motion_sety", shape: "stack", inputs: { Y: { kind: "number", shadowType: 4 } } },
+  { signature: "if on edge, bounce", opcode: "motion_ifonedgebounce", shape: "stack" },
+  { signature: "set rotation style [STYLE v]", opcode: "motion_setrotationstyle", shape: "stack", fields: { STYLE: { kind: "dropdown" } } },
+  { signature: "x position", opcode: "motion_xposition", shape: "reporter" },
+  { signature: "y position", opcode: "motion_yposition", shape: "reporter" },
+];
