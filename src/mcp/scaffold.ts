@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import yaml from "js-yaml";
 
 const STARTER_YAML = (name: string) =>
-  `name: ${name}\nsprites:\n  - name: Cat\n    source: cat.sprite.scratch\n`;
+  yaml.dump({ name, sprites: [{ name: "Cat", source: "cat.sprite.scratch" }] });
 const STARTER_SCRATCH = "when green flag clicked\nmove (10) steps\n";
 
 function slug(name: string): string {
@@ -31,15 +31,16 @@ export async function scaffoldProject(name: string, path?: string): Promise<{ di
 
 export async function listProjects(dir?: string): Promise<Array<{ name: string; path: string }>> {
   const root = dir ? resolve(dir) : projectsRoot();
-  let entries: string[];
-  try { entries = await readdir(root); }
+  let entries: import("node:fs").Dirent[];
+  try { entries = await readdir(root, { withFileTypes: true }); }
   catch (e: any) { if (e.code === "ENOENT") return []; throw e; }
   const out: Array<{ name: string; path: string }> = [];
-  for (const entry of entries) {
-    const projectDir = join(root, entry);
+  for (const dirent of entries) {
+    if (!dirent.isDirectory()) continue;
+    const projectDir = join(root, dirent.name);
     try {
       const doc = yaml.load(await readFile(join(projectDir, "project.yaml"), "utf8")) as any;
-      out.push({ name: (doc && doc.name) || entry, path: projectDir });
+      out.push({ name: (doc && doc.name) || dirent.name, path: projectDir });
     } catch { /* not a project dir — skip */ }
   }
   return out;

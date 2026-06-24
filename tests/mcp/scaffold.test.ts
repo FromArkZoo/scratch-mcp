@@ -29,3 +29,12 @@ test("listProjects finds scaffolded projects by name", async () => {
   const names = (await listProjects(root)).map((p) => p.name).sort();
   expect(names).toEqual(["Alpha", "Beta"]);
 });
+
+test("scaffolds a name with YAML-special characters and lists it", async () => {
+  const base = await mkdtemp(join(tmpdir(), "scaffold-yaml-"));
+  const { dir } = await scaffoldProject("Bouncing Cat: Level 2", join(base, "p"));
+  const res = await compileProject(dir);
+  expect(res.ok).toBe(true);
+  const names = (await listProjects(base)).map((p) => p.name);
+  expect(names).toContain("Bouncing Cat: Level 2");
+}, 120_000);
