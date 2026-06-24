@@ -1,0 +1,10 @@
+name: Infra
+sprites:
+  - name: Cat
+    source: cat.sprite.scratch
+    x: 0
+    y: 0
+variables:
+  global: { x: 0, n: 0 }
+lists:
+  global: { inventory: [] }
