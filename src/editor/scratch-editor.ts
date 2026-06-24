@@ -122,6 +122,7 @@ export class ScratchEditor {
     try {
       await this.page.waitForFunction(
         () => (window as any).__scratchRunDone === true,
+        undefined,
         { timeout: waitMs },
       );
       return { idle: true };

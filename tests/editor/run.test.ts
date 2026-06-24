@@ -38,7 +38,10 @@ test("run resolves idle:true when the project finishes", async () => {
 
 test("run resolves idle:false when a forever loop never settles", async () => {
   await editor.loadProject(foreverSb3);
+  const start = Date.now();
   const result = await editor.run({ waitMs: 800 });
+  const elapsed = Date.now() - start;
   expect(result.idle).toBe(false);
+  expect(elapsed).toBeLessThan(5000); // honors waitMs:800 — NOT Playwright's 30s default
   await editor.stop();
 });
