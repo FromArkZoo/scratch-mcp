@@ -11,8 +11,8 @@ type SigTok =
 
 function sigTokens(sig: string): SigTok[] {
   const out: SigTok[] = [];
-  // ( NAME )  [ NAME v ]  [ NAME ]  < NAME >  bare-word
-  const re = /\(([A-Z0-9]*)\)|\[([A-Z0-9]+) v\]|\[([A-Z0-9]*)\]|<([A-Z0-9]*)>|(\S+)/g;
+  // ( NAME )  [ NAME v ]  [ NAME ]  < NAME >  bare-word    (NAME may contain underscores: BROADCAST_OPTION etc.)
+  const re = /\(([A-Z0-9_]*)\)|\[([A-Z0-9_]+) v\]|\[([A-Z0-9_]*)\]|<([A-Z0-9_]*)>|(\S+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(sig))) {
     if (m[1] !== undefined && sig[m.index] === "(") out.push({ hole: "round", name: m[1] });
@@ -51,7 +51,7 @@ function groups(toks: Tok[]): Group[] {
   return out;
 }
 
-export interface ParseCtx { file: string; knownVars: Set<string>; diagnostics: Diagnostic[]; }
+export interface ParseCtx { file: string; knownVars: Set<string>; knownLists: Set<string>; diagnostics: Diagnostic[]; }
 
 const isNumeric = (s: string) => s.trim() !== "" && !Number.isNaN(Number(s));
 
@@ -64,6 +64,7 @@ function parseRound(g: Group, line: number, ctx: ParseCtx): InputValue {
       const w = gs.map((x) => (x as any).v as string).join(" ");
       if (isNumeric(w)) return { kind: "literal", value: w };
       if (ctx.knownVars.has(w)) return { kind: "variable", name: w };
+      if (ctx.knownLists.has(w)) return { kind: "list", name: w };
       // a single bare unknown word stays a lenient (string) literal;
       // a multi-word non-variable run falls through to reporter matching (preserves unbracketed-infix)
       if (gs.length === 1) return { kind: "literal", value: w };
@@ -137,9 +138,9 @@ function matchStatement(line: string, lineNo: number, ctx: ParseCtx): { def: Blo
   return null;
 }
 
-export function parseScripts(source: string, file: string, knownVars: Set<string>): { scripts: ParsedScript[]; diagnostics: Diagnostic[] } {
+export function parseScripts(source: string, file: string, knownVars: Set<string>, knownLists: Set<string> = new Set()): { scripts: ParsedScript[]; diagnostics: Diagnostic[] } {
   const diagnostics: Diagnostic[] = [];
-  const ctx: ParseCtx = { file, knownVars, diagnostics };
+  const ctx: ParseCtx = { file, knownVars, knownLists, diagnostics };
   const lines = source.split("\n").map((raw, i) => ({ raw: raw.trim(), line: i + 1 })).filter((l) => l.raw.length > 0);
   let pos = 0;
 

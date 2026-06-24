@@ -42,3 +42,23 @@ test("non-array sprites is a diagnostic, not a throw", () => {
   const { diagnostics } = parseManifest("name: G\nsprites: oops", "project.yaml");
   expect(diagnostics.some((d) => d.severity === "error")).toBe(true);
 });
+
+test("parses a lists: block into TargetDecl.lists (global on Stage, per-sprite on the sprite)", () => {
+  const yaml = [
+    "name: L",
+    "sprites:",
+    "  - name: Cat",
+    "    source: cat.sprite.scratch",
+    "variables:",
+    "  global: { score: 0 }",
+    "lists:",
+    "  global: { inventory: [] }",
+    "  Cat: { hand: [a, b] }",
+  ].join("\n");
+  const { project, diagnostics } = parseManifest(yaml, "project.yaml");
+  expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  const stage = project.targets.find((t) => t.isStage)!;
+  const cat = project.targets.find((t) => t.name === "Cat")!;
+  expect(stage.lists).toEqual([{ name: "inventory", value: [] }]);
+  expect(cat.lists).toEqual([{ name: "hand", value: ["a", "b"] }]);
+});

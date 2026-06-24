@@ -12,6 +12,14 @@ export async function packageProject(
   scriptsByTarget: Map<string, ParsedScript[]>,
 ): Promise<{ sb3: Buffer; diagnostics: Diagnostic[] }> {
   const diagnostics: Diagnostic[] = [];
+  const usedOpcodes = new Set<string>();
+  let bcastCounter = 0;
+  const broadcastIds = new Map<string, string>();
+  const resolveBroadcast = (name: string): string => {
+    let id = broadcastIds.get(name);
+    if (!id) { id = `bcast-${++bcastCounter}`; broadcastIds.set(name, id); }
+    return id;
+  };
   const zip = new JSZip();
 
   // 1. variable id maps. Global vars live on the Stage; each target sees its own + globals.
@@ -20,12 +28,21 @@ export async function packageProject(
   const stageVarIds = new Map<string, string>();
   for (const v of stage.variables) stageVarIds.set(v.name, `var-${++varCounter}`);
 
+  let listCounter = 0;
+  const stageListIds = new Map<string, string>();
+  for (const l of stage.lists ?? []) stageListIds.set(l.name, `list-${++listCounter}`);
+
   const targetsJson: any[] = [];
   for (const target of project.targets) {
     const ownVarIds = new Map<string, string>();
     if (!target.isStage) for (const v of target.variables) ownVarIds.set(v.name, `var-${++varCounter}`);
     const resolveVar = (name: string): string | undefined =>
       ownVarIds.get(name) ?? stageVarIds.get(name);
+
+    const ownListIds = new Map<string, string>();
+    if (!target.isStage) for (const l of target.lists ?? []) ownListIds.set(l.name, `list-${++listCounter}`);
+    const resolveList = (name: string): string | undefined =>
+      ownListIds.get(name) ?? stageListIds.get(name);
 
     // block emission
     const blocks: Record<string, any> = {};
@@ -45,8 +62,9 @@ export async function packageProject(
       if (spec.kind === "menu") {
         const sel = value && value.kind === "menu" ? value.value : spec.default;
         const mid = nextId();
+        const fieldVal = spec.broadcast ? [sel, resolveBroadcast(sel)] : [sel, null];
         blocks[mid] = { opcode: spec.menuOpcode, next: null, parent: parentId,
-          inputs: {}, fields: { [spec.field]: [sel, null] }, shadow: true, topLevel: false };
+          inputs: {}, fields: { [spec.field]: fieldVal }, shadow: true, topLevel: false };
         return [1, mid];
       }
       // number/text slot: literal, variable primitive, or nested reporter obscuring a shadow
@@ -60,6 +78,12 @@ export async function packageProject(
           message: `unresolved variable "${value.name}"` });
         return [3, [12, value.name, id ?? ""], [st, ""]];
       }
+      if (value.kind === "list") {
+        const id = resolveList(value.name);
+        if (!id) diagnostics.push({ file: target.sourceFile ?? target.name, line: 0, severity: "error",
+          message: `unresolved list "${value.name}"` });
+        return [3, [13, value.name, id ?? ""], [st, ""]];
+      }
       // value.kind === "block" (menu was already handled in the menu branch above)
       if (value.kind === "block") return [3, emitBlock(value.block, parentId), [st, ""]];
       return [1, [st, ""]];
@@ -68,6 +92,7 @@ export async function packageProject(
     // emitBlock emits a single (possibly nested) reporter/boolean block and returns its id.
     const emitBlock = (b: ParsedBlock, parentId: string): string => {
       const id = nextId();
+      usedOpcodes.add(b.opcode);
       const def = byOpcode.get(b.opcode);
       const entry: any = { opcode: b.opcode, next: null, parent: parentId,
         inputs: {}, fields: {}, shadow: false, topLevel: false };
@@ -95,6 +120,15 @@ export async function packageProject(
           if (!vid) diagnostics.push({ file: target.sourceFile ?? target.name, line: 0, severity: "error",
             message: `unresolved variable "${vname}"` });
           entry.fields[nm] = [vname, vid ?? ""];
+        } else if (fspec.kind === "broadcast") {
+          const bname = b.fields[nm] ?? "";
+          entry.fields[nm] = [bname, resolveBroadcast(bname)];
+        } else if (fspec.kind === "list") {
+          const lname = b.fields[nm] ?? "";
+          const lid = resolveList(lname);
+          if (!lid) diagnostics.push({ file: target.sourceFile ?? target.name, line: 0, severity: "error",
+            message: `unresolved list "${lname}"` });
+          entry.fields[nm] = [lname, lid ?? ""];
         } else { // dropdown
           entry.fields[nm] = [b.fields[nm] ?? "", null];
         }
@@ -106,6 +140,7 @@ export async function packageProject(
       let prevId: string | null = null;
       list.forEach((b, i) => {
         const id = nextId();
+        usedOpcodes.add(b.opcode);
         const def = byOpcode.get(b.opcode);
         const entry: any = {
           opcode: b.opcode, next: null,
@@ -146,9 +181,13 @@ export async function packageProject(
     const vmap = target.isStage ? stageVarIds : ownVarIds;
     for (const v of target.variables) variablesJson[vmap.get(v.name)!] = [v.name, v.value];
 
+    const listsJson: Record<string, [string, (string | number)[]]> = {};
+    const lmap = target.isStage ? stageListIds : ownListIds;
+    for (const l of target.lists ?? []) listsJson[lmap.get(l.name)!] = [l.name, l.value];
+
     const base = {
       isStage: target.isStage, name: target.name,
-      variables: variablesJson, lists: {}, broadcasts: {}, blocks, comments: {},
+      variables: variablesJson, lists: listsJson, broadcasts: {}, blocks, comments: {},
       currentCostume: 0,
       costumes: [{ ...COSTUME_BASE, name: costume.name, assetId: costume.md5, md5ext: costume.md5ext }],
       sounds: [], volume: 100, layerOrder: target.isStage ? 0 : 1,
@@ -159,7 +198,17 @@ export async function packageProject(
           size: target.size ?? 100, direction: target.direction ?? 90, draggable: false, rotationStyle: "all around" });
   }
 
-  const projectJson = { targets: targetsJson, monitors: [], extensions: [], meta: { semver: "3.0.0", vm: "0.2.0", agent: "scratch-mcp" } };
+  const stageJson = targetsJson.find((t) => t.isStage);
+  if (stageJson) {
+    const bmap: Record<string, string> = {};
+    for (const [name, id] of broadcastIds) bmap[id] = name;
+    stageJson.broadcasts = bmap;
+  }
+
+  const extensions: string[] = [];
+  if ([...usedOpcodes].some((op) => op.startsWith("pen_"))) extensions.push("pen");
+  if ([...usedOpcodes].some((op) => op.startsWith("music_"))) extensions.push("music");
+  const projectJson = { targets: targetsJson, monitors: [], extensions, meta: { semver: "3.0.0", vm: "0.2.0", agent: "scratch-mcp" } };
   zip.file("project.json", JSON.stringify(projectJson));
   const sb3 = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
   return { sb3, diagnostics };

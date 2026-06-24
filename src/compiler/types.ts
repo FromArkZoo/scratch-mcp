@@ -7,6 +7,7 @@ export interface Diagnostic {
 }
 
 export interface VariableDecl { name: string; value: string | number; }
+export interface ListDecl { name: string; value: (string | number)[]; }
 
 export interface TargetDecl {
   name: string;
@@ -14,6 +15,7 @@ export interface TargetDecl {
   sourceFile?: string;          // *.scratch path relative to project dir
   x?: number; y?: number; size?: number; direction?: number; visible?: boolean;
   variables: VariableDecl[];     // scoped to this target
+  lists?: ListDecl[];            // scoped to this target (own ∪ global-Stage at resolution)
 }
 
 export interface Project { name: string; targets: TargetDecl[]; } // targets[0] is the Stage
@@ -23,7 +25,8 @@ export type InputValue =
   | { kind: "literal"; value: string }       // (10) / [hello]
   | { kind: "variable"; name: string }       // (score) used as a reporter input
   | { kind: "block"; block: ParsedBlock }    // nested reporter ( ) or boolean < >
-  | { kind: "menu"; value: string };         // [edge v] shadow-menu selection
+  | { kind: "menu"; value: string }          // [edge v] shadow-menu selection
+  | { kind: "list"; name: string };          // (mylist) used as a reporter input → [13,name,id]
 
 export interface ParsedBlock {
   opcode: string;

@@ -1,0 +1,8 @@
+when green flag clicked
+erase all
+add [a] to [inventory v]
+add [b] to [inventory v]
+broadcast [go v]
+when I receive [go v]
+set [n v] to (item (2) of [inventory v])
+set [x v] to (1)
