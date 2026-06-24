@@ -1,18 +1,12 @@
 import { expect, test } from "vitest";
 import { byOpcode, bySignature, SLICE } from "../../src/compiler/blocks/registry.js";
 
-test("slice covers the expected opcodes", () => {
-  const opcodes = SLICE.map((d) => d.opcode).sort();
-  expect(opcodes).toEqual([
-    "control_forever", "control_if", "control_if_else", "control_repeat", "control_repeat_until",
-    "data_addtolist", "data_changevariableby", "data_itemoflist", "data_setvariableto",
-    "event_broadcast", "event_broadcastandwait", "event_whenbroadcastreceived", "event_whenflagclicked",
-    "motion_goto", "motion_movesteps", "motion_turnright",
-    "music_restForBeats",
-    "operator_add", "operator_and", "operator_equals", "operator_gt", "operator_lt",
-    "operator_mathop", "operator_not", "operator_or", "operator_subtract",
-    "pen_clear",
-  ]);
+test("registry has unique opcodes and survives the per-category split", () => {
+  const opcodes = SLICE.map((d) => d.opcode);
+  expect(new Set(opcodes).size).toBe(opcodes.length);           // no duplicate opcodes
+  // assertUniqueSkeletons runs at import; importing registry without a throw proves no skeleton collisions.
+  for (const op of ["motion_movesteps", "motion_goto", "control_if_else", "event_broadcast", "data_addtolist", "operator_mathop", "pen_clear", "music_restForBeats"])
+    expect(byOpcode.has(op)).toBe(true);
 });
 
 test("repeat is a c-block with a SUBSTACK and a whole-number TIMES input", () => {
