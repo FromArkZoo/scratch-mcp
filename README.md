@@ -1,24 +1,31 @@
 # scratch-mcp
 
-Turn readable **scratchblocks-style text into runnable Scratch 3 `.sb3` projects** — and drive a live Scratch editor to run them. A TypeScript compiler + a self-hosted [scratch-gui](https://github.com/scratchfoundation/scratch-gui) editor bridge, built toward an MCP server that lets an AI agent author and iterate on Scratch projects in an edit→compile→run loop.
+**An MCP server that lets an AI agent build and run real [Scratch](https://scratch.mit.edu) projects.** The agent writes a project as readable text, the server compiles it to a runnable Scratch 3 `.sb3`, loads it into a **live self-hosted Scratch editor**, runs it, and reads the result back — an Xcode-style *edit → reload → run → snapshot* loop over a real project, not a one-shot generation.
 
-> **Status:** the compiler (full core block palette) and the live-editor bridge are built and tested. The MCP-server wrapper is the next step — see [Roadmap](#roadmap).
+![An AI-authored Scratch project compiled and running in the live editor — the assembled blocks on the left were produced from text by the compiler; the stage shows the pen drawing it just ran.](docs/img/demo.png)
 
-## What it does
+*Above: the `repeat (36) [ move (60) steps · turn ↻ (170) degrees ]` pen program below was written as plain text, compiled to `.sb3`, and run in the live editor by tool calls — those are real, correctly-assembled Scratch blocks.*
 
-You write a project as plain text — a `project.yaml` manifest plus one `*.sprite.scratch` file per sprite (scratchblocks syntax) — and the compiler produces a `.sb3` that loads and runs in Scratch:
+## The tools
 
-```yaml
-# project.yaml
-name: Grammar
-sprites:
-  - name: Cat
-    source: cat.sprite.scratch
-    x: 0
-    y: 0
-variables:
-  global: { r: 0, b: 0, c: 0 }
-```
+The MCP server is deliberately **thin**: the agent edits the project's source text with its own file tools, and the server handles *build + live editor + inspection*. Ten stdio tools:
+
+| Tool | What it does |
+|------|--------------|
+| `new_project` | Scaffold a project folder that compiles clean |
+| `open_project` | Set the active project for subsequent calls |
+| `list_projects` | List projects under the projects root |
+| `compile` | Compile source → `.sb3`; returns fail-loud diagnostics (no editor needed) |
+| `reload` | Compile **and** load into the live editor — loads *nothing* if compilation fails |
+| `run` | Green-flag the project and await a real run-completion signal (with a timeout) |
+| `stop` | Stop all running scripts |
+| `snapshot` | Screenshot the stage as a PNG image |
+| `read_state` | Variables, lists, and per-sprite state — namespaced (no global/local collisions) |
+| `import_sb3` | Load an existing `.sb3` to run / inspect (load-only) |
+
+## The loop
+
+The agent edits **plain text** — a `project.yaml` manifest plus one `*.sprite.scratch` file per sprite, in [scratchblocks](https://en.scratch-wiki.info/wiki/Block_Plugin/Syntax) syntax — then calls `reload` → `run` → `snapshot` and sees what happened:
 
 ```
 # cat.sprite.scratch
@@ -34,24 +41,50 @@ repeat until <(c) = (5)>
 end
 ```
 
-```ts
-import { compileProject } from "./src/compiler/index.js";
+The text is the single source of truth — readable, diffable, and reviewable — exactly like Swift files are canonical and the compiled app is derived. The user watches it all land live in the editor tab.
 
-const { ok, sb3, diagnostics } = await compileProject("path/to/project-dir");
-// ok === false + diagnostics (and no sb3) if anything is malformed — fail-loud, collect-all.
+### Use it
+
+Point an MCP client (Claude Desktop, Claude Code, …) at the built server:
+
+```jsonc
+{
+  "mcpServers": {
+    "scratch": { "command": "node", "args": ["/abs/path/to/scratch-mcp/dist/src/index.js"] }
+  }
+}
 ```
+
+The editor browser tab launches lazily on the first `reload`/`import_sb3` and stays open for the session, so changes appear live. Set `SCRATCH_MCP_HEADLESS=1` to run it without a visible window.
+
+## How it works
+
+Three subsystems, one coherent server:
+
+- **Source** — `*.sprite.scratch` (scratchblocks text) + a `project.yaml` manifest.
+  ```yaml
+  name: Grammar
+  sprites:
+    - name: Cat
+      source: cat.sprite.scratch
+  variables:
+    global: { r: 0, b: 0, c: 0 }
+  ```
+- **Compiler** (`src/compiler/`) — a manifest parser + a hand-rolled scratchblocks parser + a per-category block dictionary (`blocks/categories/*.ts`, guarded by a signature-uniqueness check) + a hand-rolled [JSZip](https://stuk.github.io/jszip/) packager that emits Scratch-3 `.sb3`. Headless verification runs against `scratch-vm@5.0.300`. It's **fail-loud**: any unsupported block, unresolved name, or malformed script becomes a precise `file:line` diagnostic rather than a silently-broken project.
+  ```ts
+  import { compileProject } from "./src/compiler/index.js";
+  const { ok, sb3, diagnostics } = await compileProject("path/to/project-dir");
+  // ok === false + diagnostics (and no sb3) if anything is malformed — collect-all.
+  ```
+- **Live-editor bridge** (`src/editor/`) — a self-hosted [scratch-gui](https://github.com/scratchfoundation/scratch-gui) Vite app whose live VM is driven through [Playwright](https://playwright.dev) (`launch / loadProject / run / stop / snapshot / readState / close`), never by faking UI drags. That keeps it robust — the fragile drag-and-drop path is explicitly avoided.
+
+- **MCP layer** (`src/mcp/`) — a `Session` (active project + a lazily-launched editor singleton) and ten thin tool handlers that wrap the compiler and bridge, surfacing diagnostics and namespaced state to the calling agent.
 
 ## Block palette
 
 The compiler covers the **entire Scratch 3 default palette** — 135 block definitions across all 11 categories (Motion · Looks · Sound · Events · Control · Sensing · Operators · Variables · Lists · Pen · Music), plus broadcasts and the `extensions[]` (Pen/Music) machinery. Every block is verified under a **dual standard**: a runtime assertion in a headless VM where the effect is observable, or a structural assertion on the emitted `project.json` plus a load-and-run check otherwise — and a coverage test proves every block's signature round-trips to its own opcode.
 
-Out of scope for now: custom blocks/procedures, a real asset resolver (costumes/sounds resolve to a placeholder), and on-stage monitors.
-
-## Architecture
-
-- **Source** — `*.sprite.scratch` (scratchblocks text) + a `project.yaml` manifest.
-- **Compiler** (`src/compiler/`) — manifest parser + a hand-rolled scratchblocks parser + a per-category block dictionary (`blocks/categories/*.ts`, guarded by a signature-uniqueness check) + a hand-rolled [JSZip](https://stuk.github.io/jszip/) packager that emits Scratch-3 `.sb3`. Headless verification runs against `scratch-vm@5.0.300`.
-- **Live editor bridge** (`src/editor/`) — a self-hosted scratch-gui Vite app whose live VM is driven through [Playwright](https://playwright.dev) (`ScratchEditor`: `launch / loadProject / run / stop / snapshot / readState / close`), never by faking UI drags. The editor is a separate app under `editor/` (see `src/editor/EDITOR_VERSION.md` for pinned versions).
+Out of scope for now: custom blocks/procedures, a real asset resolver (costumes/sounds resolve to a placeholder), on-stage monitors, and a decompiler (`import_sb3` is load-only — turning a `.sb3` back into editable source is a separate forward-vs-reverse problem).
 
 ## Develop
 
@@ -59,25 +92,26 @@ Requires **Node ≥ 25**. The compiler/test stack has no native build step.
 
 ```bash
 npm install
-npm run build      # tsc -p tsconfig.json
-npm test           # vitest run  (compiler + headless-VM + editor tests)
+npm run build      # tsc -p tsconfig.json  → dist/
+npm test           # vitest run  (compiler + headless-VM + editor + MCP tests)
 ```
 
-The self-hosted editor (only needed for the live-editor bridge) is built separately under `editor/`.
+The self-hosted editor (only needed for the live bridge) is built separately under `editor/`.
 
 ## Roadmap
 
-- [x] Live-editor bridge (Phase 0)
-- [x] Compiler pipeline skeleton (text → `.sb3`, headless-VM proven)
+- [x] Live-editor bridge (self-hosted scratch-gui, VM-driven via Playwright)
+- [x] Compiler pipeline (text → `.sb3`, headless-VM proven, fail-loud)
 - [x] Infrastructure extensions (broadcasts, lists, Pen/Music `extensions[]`)
 - [x] Full core block-palette dictionary (135 blocks, dual-standard tested)
-- [ ] MCP server — wrap the compiler + bridge as stdio tools (`new` / `open` / `compile` / `reload` / `run` / `stop` / `snapshot` / `read_state`)
+- [x] **MCP server** — 10 stdio tools wrapping the compiler + bridge; real run-completion signal + per-sprite namespaced state
 - [ ] Custom blocks / procedures
 - [ ] Asset resolver (real costumes/sounds/backdrops)
+- [ ] Decompiler + editable `import_sb3`
 
 ## Tech
 
-TypeScript (strict, ESM) · Node ≥ 25 · Vitest · JSZip · js-yaml · Playwright · headless `scratch-vm@5.0.300`.
+TypeScript (strict, ESM) · Node ≥ 25 · [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk) · Zod · Vitest · JSZip · js-yaml · Playwright · headless `scratch-vm@5.0.300`.
 
 Design specs and implementation plans live under [`docs/superpowers/`](docs/superpowers/).
 
