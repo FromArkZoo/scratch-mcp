@@ -2,7 +2,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { Session } from "./session.js";
 import {
   handleNewProject, handleOpenProject, handleListProjects, handleCompile,
@@ -12,14 +13,26 @@ import {
 } from "./tools-editor.js";
 import type { ToolResult } from "./result.js";
 
-// package.json is always at the project root (cwd when running npm scripts / vitest / node dist/...)
-const pkg = JSON.parse(
-  readFileSync(join(process.cwd(), "package.json"), "utf8"),
-) as { version: string };
+// Resolve our own package version relative to THIS module (not process.cwd()), so the
+// version read works whether run from source (src/mcp) or the built bin (dist/src/mcp)
+// and regardless of the cwd a client spawns us with.
+function readPackageVersion(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 8; i++) {
+    try {
+      const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { name?: string; version?: string };
+      if (pkg.name === "scratch-mcp") return pkg.version ?? "0.0.0";
+    } catch { /* not here — keep walking up */ }
+    const parent = dirname(dir);
+    if (parent === dir) break; // filesystem root
+    dir = parent;
+  }
+  return "0.0.0";
+}
 
 export function createServer(): { server: McpServer; session: Session } {
   const session = new Session();
-  const server = new McpServer({ name: "scratch-mcp", version: pkg.version });
+  const server = new McpServer({ name: "scratch-mcp", version: readPackageVersion() });
 
   const reg = (
     name: string,

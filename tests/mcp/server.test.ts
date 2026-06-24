@@ -38,3 +38,14 @@ test("compile with no active project reports isError through the SDK", async () 
   const res: any = await client.callTool({ name: "compile", arguments: {} });
   expect(res.isError).toBe(true);
 });
+
+test("createServer resolves its version independent of process cwd (client-spawn safe)", async () => {
+  const orig = process.cwd();
+  const elsewhere = await mkdtemp(join(tmpdir(), "cwd-"));
+  try {
+    process.chdir(elsewhere); // a dir with NO package.json — mimics a client-spawned bin
+    expect(() => createServer()).not.toThrow();
+  } finally {
+    process.chdir(orig);
+  }
+});
