@@ -36,6 +36,7 @@ export class ScratchEditor {
       await page.goto(server.url, { waitUntil: "load" });
       await page.waitForFunction(
         () => Boolean((window as any).vm) && (window as any).__scratchReady === true,
+        undefined,
         { timeout: 60_000 },
       );
       return new ScratchEditor(server, browser, page);
