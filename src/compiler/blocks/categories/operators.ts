@@ -19,4 +19,13 @@ export const OPERATORS: BlockDef[] = [
     inputs: { OPERAND: { kind: "boolean" } } },
   { signature: "[OPERATOR v] of (NUM)", opcode: "operator_mathop", shape: "reporter",
     inputs: { NUM: { kind: "number", shadowType: 4 } }, fields: { OPERATOR: { kind: "dropdown" } } },
+  { signature: "(NUM1) * (NUM2)", opcode: "operator_multiply", shape: "reporter", inputs: { NUM1: { kind: "number", shadowType: 4 }, NUM2: { kind: "number", shadowType: 4 } } },
+  { signature: "(NUM1) / (NUM2)", opcode: "operator_divide", shape: "reporter", inputs: { NUM1: { kind: "number", shadowType: 4 }, NUM2: { kind: "number", shadowType: 4 } } },
+  { signature: "pick random (FROM) to (TO)", opcode: "operator_random", shape: "reporter", inputs: { FROM: { kind: "number", shadowType: 4 }, TO: { kind: "number", shadowType: 4 } } },
+  { signature: "join (STRING1) (STRING2)", opcode: "operator_join", shape: "reporter", inputs: { STRING1: { kind: "text", shadowType: 10 }, STRING2: { kind: "text", shadowType: 10 } } },
+  { signature: "letter (LETTER) of (STRING)", opcode: "operator_letter_of", shape: "reporter", inputs: { LETTER: { kind: "number", shadowType: 6 }, STRING: { kind: "text", shadowType: 10 } } },
+  { signature: "length of (STRING)", opcode: "operator_length", shape: "reporter", inputs: { STRING: { kind: "text", shadowType: 10 } } },
+  { signature: "(STRING1) contains (STRING2)?", opcode: "operator_contains", shape: "boolean", inputs: { STRING1: { kind: "text", shadowType: 10 }, STRING2: { kind: "text", shadowType: 10 } } },
+  { signature: "(NUM1) mod (NUM2)", opcode: "operator_mod", shape: "reporter", inputs: { NUM1: { kind: "number", shadowType: 4 }, NUM2: { kind: "number", shadowType: 4 } } },
+  { signature: "round (NUM)", opcode: "operator_round", shape: "reporter", inputs: { NUM: { kind: "number", shadowType: 4 } } },
 ];
