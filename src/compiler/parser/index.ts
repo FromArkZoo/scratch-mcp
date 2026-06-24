@@ -23,7 +23,13 @@ function sigTokens(sig: string): SigTok[] {
   }
   return out;
 }
-const SIGS: { def: BlockDef; toks: SigTok[] }[] = SLICE.filter((def) => !def.synthetic).map((def) => ({ def, toks: sigTokens(def.signature) }));
+const litCount = (toks: SigTok[]): number => toks.filter((t) => "lit" in t).length;
+// More-literal (more specific) signatures are tried first, so a literal token beats a round/square hole
+// that would otherwise absorb the same bare word (e.g. "delete all of [L v]" wins over "delete (N) of [L v]").
+// V8 sort is stable, so equal-specificity defs keep SLICE order (and the options tiebreak handles those).
+const SIGS: { def: BlockDef; toks: SigTok[] }[] = SLICE.filter((def) => !def.synthetic)
+  .map((def) => ({ def, toks: sigTokens(def.signature) }))
+  .sort((a, b) => litCount(b.toks) - litCount(a.toks));
 
 // Zero-arg reporters (signature is all literal words) — resolve a bare single-word `(name)` to the reporter block.
 const ZERO_ARG_REPORTERS = new Map<string, BlockDef>(

@@ -111,7 +111,8 @@ test("music_playNoteForBeats: emits the block and loads", async () => {
   const pj = JSON.parse(await (await JSZip.loadAsync(res.sb3!)).file("project.json")!.async("string"));
   const cat = pj.targets.find((t: any) => t.name === "Cat");
   const blocks = Object.values(cat.blocks) as any[];
-  expect(blocks.some((b) => b.opcode === "music_playNoteForBeats")).toBe(true);
+  const note = blocks.find((b) => b.opcode === "music_playNoteForBeats")!;
+  expect(note.inputs.NOTE).toEqual([1, [4, "60"]]); // documented compromise: NOTE → plain number shadow (type 4), not a note-picker shadow
   await runHeadless(res.sb3!); // loads + steps without throwing
 });
 

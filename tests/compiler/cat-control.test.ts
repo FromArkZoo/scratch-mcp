@@ -82,6 +82,26 @@ test("control_stop: 'stop this script' terminates the script so the following bl
   expect(Number(st.variable("v"))).toBe(1); // the post-stop "set v to 99" never executed
 });
 
+test("control_stop: an unknown stop option fails loud (options validation)", async () => {
+  const res = await compileProject(await projectDir(script("stop [sideways v]")));
+  expect(res.ok).toBe(false);
+  expect(res.diagnostics.some((d) => d.severity === "error")).toBe(true);
+});
+
+// KNOWN COMPROMISE (pinned): B does not model control_stop's cap-vs-stack / hasnext mutation (the
+// packager is frozen). "stop [all v]" is shape:"stack", so a trailing block still gets a (harmless,
+// never-executed) next + no mutation. Pin it so any future mutation support is a deliberate change.
+test("control_stop: 'stop all' + trailing block emits a next + no mutation (documented compromise)", async () => {
+  const res = await compileProject(await projectDir(script("stop [all v]", "set [v v] to (1)")));
+  expect(res.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  const pj = JSON.parse(await (await JSZip.loadAsync(res.sb3!)).file("project.json")!.async("string"));
+  const cat = pj.targets.find((t: any) => t.name === "Cat");
+  const stop = (Object.values(cat.blocks) as any[]).find((b) => b.opcode === "control_stop");
+  expect(stop.next).not.toBeNull(); // cap-ness not modeled
+  expect(stop.mutation).toBeUndefined(); // hasnext mutation omitted
+  await runHeadless(res.sb3!); // still loads + steps (the dead child never runs)
+});
+
 // ---------------------------------------------------------------------------
 // Tier-1 — control_start_as_clone
 // A flag script clones the sprite; the clone's hat increments n.

@@ -111,7 +111,8 @@ test("sensing_touchingcolor: emits the block and a colour shadow, and loads", as
   );
   noErrors(res);
   const blocks = await catBlocks(res.sb3!);
-  expect(blocks.some((b) => b.opcode === "sensing_touchingcolor")).toBe(true);
+  const tc = blocks.find((b) => b.opcode === "sensing_touchingcolor")!;
+  expect(tc.inputs.COLOR).toEqual([1, [9, "#ff0000"]]); // colour shadow (type 9) carries the authored hex
   await runHeadless(res.sb3!);
 });
 
@@ -124,7 +125,9 @@ test("sensing_coloristouchingcolor: emits the block and loads", async () => {
   );
   noErrors(res);
   const blocks = await catBlocks(res.sb3!);
-  expect(blocks.some((b) => b.opcode === "sensing_coloristouchingcolor")).toBe(true);
+  const ct = blocks.find((b) => b.opcode === "sensing_coloristouchingcolor")!;
+  expect(ct.inputs.COLOR).toEqual([1, [9, "#ff0000"]]);
+  expect(ct.inputs.COLOR2).toEqual([1, [9, "#00ff00"]]);
   await runHeadless(res.sb3!);
 });
 

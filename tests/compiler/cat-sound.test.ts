@@ -21,8 +21,24 @@ const script = (...lines: string[]) => ["when green flag clicked", ...lines].joi
 
 // ── Tier-1 (runtime-assert) ──────────────────────────────────────────────────
 
-// sound_cleareffects: Tier-2. sound_seteffectto halts the headless thread (no audio engine),
-// so the clear's runtime effect isn't observable — assert the block emits + the sb3 loads/runs.
+// sound_seteffectto / sound_changeeffectby are Tier-1: _updateEffect writes the value BEFORE its
+// audio-engine yield, so the effect persists on target.soundEffects even headless.
+test("sound_seteffectto: set [pitch v] effect to (100) sets soundEffects.pitch", async () => {
+  const res = await compileProject(await projectDir(script("set [pitch v] effect to (100)")));
+  expect(res.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  const st = await runHeadless(res.sb3!);
+  expect(st.target("Cat").soundEffects.pitch).toBe(100);
+  expect(st.target("Cat").soundEffects.pan).toBe(0);
+});
+test("sound_changeeffectby: change [pan v] effect by (50) from 0 sets soundEffects.pan", async () => {
+  const res = await compileProject(await projectDir(script("change [pan v] effect by (50)")));
+  expect(res.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  const st = await runHeadless(res.sb3!);
+  expect(st.target("Cat").soundEffects.pan).toBe(50);
+});
+
+// sound_cleareffects: Tier-2 — a preceding set-effect halts the headless thread BEFORE clear runs,
+// so the cleared value isn't observable. Assert the block emits + the sb3 loads/runs.
 test("sound_cleareffects: emits its opcode and loads", async () => {
   const res = await compileProject(await projectDir(script("clear sound effects")));
   expect(res.diagnostics.filter((d) => d.severity === "error")).toEqual([]);

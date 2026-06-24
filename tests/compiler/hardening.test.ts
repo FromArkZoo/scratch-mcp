@@ -48,3 +48,10 @@ test("a bare (direction) parses as the motion_direction reporter, not a literal"
   expect(value.kind).toBe("block");
   expect(value.kind === "block" && value.block.opcode).toBe("motion_direction");
 });
+
+test("a user variable named 'timer' beats the zero-arg sensing_timer reporter (precedence)", () => {
+  const r = parse(["set [v v] to (timer)"], ["timer", "v"]);
+  expect(r.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  const value = r.scripts[0].blocks[1].inputs.VALUE as InputValue;
+  expect(value.kind === "variable" && value.name).toBe("timer");
+});

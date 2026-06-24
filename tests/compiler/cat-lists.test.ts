@@ -72,6 +72,9 @@ test("data_deleteoflist: delete (2) removes the 2nd item; delete (all) clears th
     LISTS_YAML,
   ));
   expect(resOne.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  const pjOne = JSON.parse(await (await JSZip.loadAsync(resOne.sb3!)).file("project.json")!.async("string"));
+  const opsOne = Object.values(pjOne.targets.find((t: any) => t.name === "Cat").blocks).map((b: any) => b.opcode);
+  expect(opsOne).toContain("data_deleteoflist"); // the round-hole index path
   const stOne = await runHeadless(resOne.sb3!);
   expect(stOne.variable("inventory")).toEqual(["a", "c"]); // 2nd element removed, length 3 -> 2
 
@@ -102,6 +105,14 @@ test("data_deletealloflist: clears a non-empty list -> length 0", async () => {
     LISTS_YAML,
   ));
   expect(res.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  // Lock the OPCODE: "delete all of" must emit data_deletealloflist, not be shadowed by the
+  // round-hole "delete (N) of" (data_deleteoflist). Without this the test is tautological,
+  // because the VM clears the list for INDEX="all" under data_deleteoflist too.
+  const pj = JSON.parse(await (await JSZip.loadAsync(res.sb3!)).file("project.json")!.async("string"));
+  const cat = pj.targets.find((t: any) => t.name === "Cat");
+  const ops = Object.values(cat.blocks).map((b: any) => b.opcode);
+  expect(ops).toContain("data_deletealloflist");
+  expect(ops).not.toContain("data_deleteoflist");
   const st = await runHeadless(res.sb3!);
   expect((st.variable("inventory") as unknown[]).length).toBe(0);
 });
