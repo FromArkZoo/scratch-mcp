@@ -11,8 +11,8 @@ type SigTok =
 
 function sigTokens(sig: string): SigTok[] {
   const out: SigTok[] = [];
-  // ( NAME )  [ NAME v ]  [ NAME ]  < NAME >  bare-word
-  const re = /\(([A-Z0-9]*)\)|\[([A-Z0-9]+) v\]|\[([A-Z0-9]*)\]|<([A-Z0-9]*)>|(\S+)/g;
+  // ( NAME )  [ NAME v ]  [ NAME ]  < NAME >  bare-word    (NAME may contain underscores: BROADCAST_OPTION etc.)
+  const re = /\(([A-Z0-9_]*)\)|\[([A-Z0-9_]+) v\]|\[([A-Z0-9_]*)\]|<([A-Z0-9_]*)>|(\S+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(sig))) {
     if (m[1] !== undefined && sig[m.index] === "(") out.push({ hole: "round", name: m[1] });

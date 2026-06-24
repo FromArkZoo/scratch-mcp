@@ -13,6 +13,13 @@ export async function packageProject(
 ): Promise<{ sb3: Buffer; diagnostics: Diagnostic[] }> {
   const diagnostics: Diagnostic[] = [];
   const usedOpcodes = new Set<string>();
+  let bcastCounter = 0;
+  const broadcastIds = new Map<string, string>();
+  const resolveBroadcast = (name: string): string => {
+    let id = broadcastIds.get(name);
+    if (!id) { id = `bcast-${++bcastCounter}`; broadcastIds.set(name, id); }
+    return id;
+  };
   const zip = new JSZip();
 
   // 1. variable id maps. Global vars live on the Stage; each target sees its own + globals.
@@ -46,8 +53,9 @@ export async function packageProject(
       if (spec.kind === "menu") {
         const sel = value && value.kind === "menu" ? value.value : spec.default;
         const mid = nextId();
+        const fieldVal = spec.broadcast ? [sel, resolveBroadcast(sel)] : [sel, null];
         blocks[mid] = { opcode: spec.menuOpcode, next: null, parent: parentId,
-          inputs: {}, fields: { [spec.field]: [sel, null] }, shadow: true, topLevel: false };
+          inputs: {}, fields: { [spec.field]: fieldVal }, shadow: true, topLevel: false };
         return [1, mid];
       }
       // number/text slot: literal, variable primitive, or nested reporter obscuring a shadow
@@ -97,7 +105,10 @@ export async function packageProject(
           if (!vid) diagnostics.push({ file: target.sourceFile ?? target.name, line: 0, severity: "error",
             message: `unresolved variable "${vname}"` });
           entry.fields[nm] = [vname, vid ?? ""];
-        } else { // dropdown
+        } else if (fspec.kind === "broadcast") {
+          const bname = b.fields[nm] ?? "";
+          entry.fields[nm] = [bname, resolveBroadcast(bname)];
+        } else { // dropdown (list handled in Task 4)
           entry.fields[nm] = [b.fields[nm] ?? "", null];
         }
       }
@@ -160,6 +171,13 @@ export async function packageProject(
       ? { ...base, tempo: 60, videoTransparency: 50, videoState: "on", textToSpeechLanguage: null }
       : { ...base, visible: target.visible ?? true, x: target.x ?? 0, y: target.y ?? 0,
           size: target.size ?? 100, direction: target.direction ?? 90, draggable: false, rotationStyle: "all around" });
+  }
+
+  const stageJson = targetsJson.find((t) => t.isStage);
+  if (stageJson) {
+    const bmap: Record<string, string> = {};
+    for (const [name, id] of broadcastIds) bmap[id] = name;
+    stageJson.broadcasts = bmap;
   }
 
   const extensions: string[] = [];
