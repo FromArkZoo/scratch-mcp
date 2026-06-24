@@ -52,4 +52,8 @@ export const SLICE: BlockDef[] = [
   // ---- motion (menu example) ----
   { signature: "go to [TO v]", opcode: "motion_goto", shape: "stack",
     inputs: { TO: { kind: "menu", menuOpcode: "motion_goto_menu", field: "TO", default: "_random_" } } },
+  // ---- extensions proving slice (full Pen/Music palettes are Sub-project B) ----
+  { signature: "erase all", opcode: "pen_clear", shape: "stack" },
+  { signature: "rest for (BEATS) beats", opcode: "music_restForBeats", shape: "stack",
+    inputs: { BEATS: { kind: "number", shadowType: 4 } } },
 ];

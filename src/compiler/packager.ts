@@ -12,6 +12,7 @@ export async function packageProject(
   scriptsByTarget: Map<string, ParsedScript[]>,
 ): Promise<{ sb3: Buffer; diagnostics: Diagnostic[] }> {
   const diagnostics: Diagnostic[] = [];
+  const usedOpcodes = new Set<string>();
   const zip = new JSZip();
 
   // 1. variable id maps. Global vars live on the Stage; each target sees its own + globals.
@@ -68,6 +69,7 @@ export async function packageProject(
     // emitBlock emits a single (possibly nested) reporter/boolean block and returns its id.
     const emitBlock = (b: ParsedBlock, parentId: string): string => {
       const id = nextId();
+      usedOpcodes.add(b.opcode);
       const def = byOpcode.get(b.opcode);
       const entry: any = { opcode: b.opcode, next: null, parent: parentId,
         inputs: {}, fields: {}, shadow: false, topLevel: false };
@@ -106,6 +108,7 @@ export async function packageProject(
       let prevId: string | null = null;
       list.forEach((b, i) => {
         const id = nextId();
+        usedOpcodes.add(b.opcode);
         const def = byOpcode.get(b.opcode);
         const entry: any = {
           opcode: b.opcode, next: null,
@@ -159,7 +162,10 @@ export async function packageProject(
           size: target.size ?? 100, direction: target.direction ?? 90, draggable: false, rotationStyle: "all around" });
   }
 
-  const projectJson = { targets: targetsJson, monitors: [], extensions: [], meta: { semver: "3.0.0", vm: "0.2.0", agent: "scratch-mcp" } };
+  const extensions: string[] = [];
+  if ([...usedOpcodes].some((op) => op.startsWith("pen_"))) extensions.push("pen");
+  if ([...usedOpcodes].some((op) => op.startsWith("music_"))) extensions.push("music");
+  const projectJson = { targets: targetsJson, monitors: [], extensions, meta: { semver: "3.0.0", vm: "0.2.0", agent: "scratch-mcp" } };
   zip.file("project.json", JSON.stringify(projectJson));
   const sb3 = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
   return { sb3, diagnostics };

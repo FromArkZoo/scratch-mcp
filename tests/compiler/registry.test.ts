@@ -7,8 +7,10 @@ test("slice covers the expected opcodes", () => {
     "control_forever", "control_if", "control_if_else", "control_repeat", "control_repeat_until",
     "data_changevariableby", "data_setvariableto", "event_whenflagclicked",
     "motion_goto", "motion_movesteps", "motion_turnright",
+    "music_restForBeats",
     "operator_add", "operator_and", "operator_equals", "operator_gt", "operator_lt",
     "operator_mathop", "operator_not", "operator_or", "operator_subtract",
+    "pen_clear",
   ]);
 });
 
