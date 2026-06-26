@@ -2,13 +2,34 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { Session } from "../../src/mcp/session.js";
+import { ScratchEditor } from "../../src/editor/scratch-editor.js";
 import {
   handleNewProject, handleOpenProject, handleListProjects, handleCompile,
 } from "../../src/mcp/tools-build.js";
 
 const txt = (r: any) => r.content[0].text as string;
+
+// open_project warms the editor (eager launch). Stub the launch so these build-focused
+// tests never spawn or leak a real chromium.
+let launchSpy: any;
+beforeEach(() => {
+  launchSpy = vi.spyOn(ScratchEditor, "launch")
+    .mockResolvedValue({ close: vi.fn().mockResolvedValue(undefined) } as unknown as ScratchEditor);
+});
+afterEach(() => launchSpy.mockRestore());
+
+test("open_project warms the editor so the first reload isn't a cold start", async () => {
+  const base = await mkdtemp(join(tmpdir(), "tb-warm-"));
+  const dir = join(base, "warm");
+  const s = new Session();
+  await handleNewProject(s, { name: "Warm", path: dir });
+  await handleOpenProject(s, { path: dir });
+  expect(s.hasEditor()).toBe(true);
+  expect(launchSpy).toHaveBeenCalled();
+  await s.dispose();
+}, 120_000);
 
 test("new_project creates a compiling project", async () => {
   const base = await mkdtemp(join(tmpdir(), "tb-new-"));

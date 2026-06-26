@@ -20,6 +20,7 @@ export async function handleOpenProject(
 ): Promise<ToolResult> {
   try {
     const dir = await session.openProject(args.path);
+    session.warmEditor(); // eager, non-blocking: overlap the editor cold-start with authoring
     return textResult(`Active project set to ${dir}`);
   } catch (e) { return errorResult((e as Error).message); }
 }

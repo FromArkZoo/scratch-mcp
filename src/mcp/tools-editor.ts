@@ -9,7 +9,15 @@ export async function handleReload(session: Session, args: { path?: string }): P
     const dir = session.resolveProjectDir(args.path);
     const compiled = await runCompile(dir);
     if (!compiled.ok || !compiled.sb3) return errorResult(compiled.text); // fail-loud: load nothing
-    await (await session.getEditor()).loadProject(compiled.sb3);
+    const editor = await session.getEditor();
+    try {
+      await editor.loadProject(compiled.sb3);
+    } catch (e) {
+      // A load failure (e.g. a timed-out vm.loadProject) can leave the VM mid-mutation;
+      // drop the editor so the next reload starts from a clean one rather than racing it.
+      await session.dispose().catch(() => {});
+      throw e;
+    }
     return textResult(compiled.text ? `Loaded into editor.\n${compiled.text}` : "Loaded into editor.");
   } catch (e) { return errorResult((e as Error).message); }
 }
