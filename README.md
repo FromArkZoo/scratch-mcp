@@ -55,7 +55,7 @@ Point an MCP client (Claude Desktop, Claude Code, …) at the built server:
 }
 ```
 
-The editor browser tab launches lazily on the first `reload`/`import_sb3` and stays open for the session, so changes appear live. Set `SCRATCH_MCP_HEADLESS=1` to run it without a visible window.
+The editor launches when you set an active project (`open_project` warms it in the background) and is reused for the session. It runs **headless by default** — Claude observes the running project via `snapshot` and `read_state`, which need no window. Set `SCRATCH_MCP_VISIBLE=1` to watch a live editor window instead (`SCRATCH_MCP_HEADLESS=0` also forces a visible window, for back-compat).
 
 ## How it works
 

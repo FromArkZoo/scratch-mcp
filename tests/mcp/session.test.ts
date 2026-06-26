@@ -3,8 +3,26 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, test, vi } from "vitest";
-import { Session } from "../../src/mcp/session.js";
+import { Session, resolveHeadless } from "../../src/mcp/session.js";
 import { ScratchEditor } from "../../src/editor/scratch-editor.js";
+
+test("resolveHeadless defaults to headless; visible only on explicit opt-in", () => {
+  expect(resolveHeadless({})).toBe(true);                              // default = headless (fast, no display needed)
+  expect(resolveHeadless({ SCRATCH_MCP_VISIBLE: "1" })).toBe(false);   // human wants to watch
+  expect(resolveHeadless({ SCRATCH_MCP_HEADLESS: "0" })).toBe(false);  // back-compat escape to headful
+  expect(resolveHeadless({ SCRATCH_MCP_HEADLESS: "1" })).toBe(true);
+});
+
+test("warmEditor kicks off the launch so hasEditor() is true immediately", async () => {
+  const fake = { close: vi.fn().mockResolvedValue(undefined) } as unknown as ScratchEditor;
+  const spy = vi.spyOn(ScratchEditor, "launch").mockResolvedValue(fake);
+  const s = new Session();
+  expect(s.hasEditor()).toBe(false);
+  s.warmEditor();
+  expect(s.hasEditor()).toBe(true);
+  await s.dispose();
+  spy.mockRestore();
+});
 
 test("resolveProjectDir prefers explicit path, then active, else throws", async () => {
   const s = new Session();

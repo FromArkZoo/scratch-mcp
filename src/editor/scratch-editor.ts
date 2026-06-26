@@ -29,6 +29,19 @@ export function resolveEditorDist(moduleDir: string): string {
 const here = dirname(fileURLToPath(import.meta.url));
 const EDITOR_DIST = resolveEditorDist(here);
 
+/**
+ * Bound a promise that has no native timeout (notably page.evaluate, which Playwright
+ * never times out) so a wedged in-page op — e.g. vm.loadProject on a corrupt/huge sb3 —
+ * can't hang a tool indefinitely.
+ */
+export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
+}
+
 export type ScalarMap = Record<string, string | number | boolean>;
 export type ListMap = Record<string, (string | number | boolean)[]>;
 export interface SpriteState {
@@ -59,8 +72,9 @@ export class ScratchEditor {
       throw new Error(`editor bundle not found at ${dist} (no index.html). Build it with: (cd editor && npm run build).`);
     }
     const server = await serveDir(dist, opts.port);
+    let browser: Browser | undefined;
     try {
-      const browser = await chromium.launch({ headless: opts.headless ?? false });
+      browser = await chromium.launch({ headless: opts.headless ?? true });
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(server.url, { waitUntil: "load" });
       await page.waitForFunction(
@@ -70,6 +84,7 @@ export class ScratchEditor {
       );
       return new ScratchEditor(server, browser, page);
     } catch (e) {
+      await browser?.close().catch(() => {});   // don't leak the browser if a post-launch step throws
       await server.close().catch(() => {});
       throw e;
     }
@@ -132,12 +147,12 @@ export class ScratchEditor {
     // crosses the Playwright IPC boundary; a future optimization could read bytes in the
     // browser context directly to avoid the serialisation overhead.
     const b64 = sb3.toString("base64");
-    await this.page.evaluate(async (data: string) => {
+    await withTimeout(this.page.evaluate(async (data: string) => {
       const bin = atob(data);
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       await (window as any).vm.loadProject(bytes.buffer);
-    }, b64);
+    }, b64), 30_000, "loadProject");
   }
 
   async run(opts: { waitMs?: number } = {}): Promise<{ idle: boolean; running: boolean; threads: number }> {
