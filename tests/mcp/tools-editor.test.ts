@@ -65,6 +65,28 @@ test("import_sb3 loads an existing .sb3 (load-only) and runs", async () => {
   expect(txt(run)).toMatch(/idle/i);
 });
 
+test("run defaults to a fast settle and reports a running game (not a 10s block)", async () => {
+  await writeFile(join(projectDir, "cat.sprite.scratch"),
+    "when green flag clicked\nforever\nturn right (10) degrees\nend\n");
+  const reload = await handleReload(session, {});
+  expect(reload.isError).toBeFalsy();
+  const start = Date.now();
+  const run = await handleRun(session, {}); // no timeoutMs, no waitForCompletion
+  expect(Date.now() - start).toBeLessThan(4000);
+  expect(txt(run)).toMatch(/running/i);
+  await handleStop(session);
+});
+
+test("run reports when the green flag triggered no scripts (e.g. a missing 'when green flag clicked' hat)", async () => {
+  await writeFile(join(projectDir, "cat.sprite.scratch"),
+    "when this sprite clicked\nmove (10) steps\n");
+  const reload = await handleReload(session, {});
+  expect(reload.isError).toBeFalsy();
+  const run = await handleRun(session, {});
+  expect(txt(run)).toMatch(/no scripts kept running|green flag clicked/i);
+  await handleStop(session);
+});
+
 test("read_state on a fresh session errors before any load", async () => {
   const r = await handleReadState(new Session());
   expect(r.isError).toBe(true);

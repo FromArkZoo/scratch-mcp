@@ -51,8 +51,8 @@ export function createServer(): { server: McpServer; session: Session } {
     { path: z.string().optional() }, (a) => handleCompile(session, a));
   reg("reload", "Compile then load the project into the live editor (fail-loud).",
     { path: z.string().optional() }, (a) => handleReload(session, a));
-  reg("run", "Green-flag the loaded project; await idle up to timeoutMs (default 10000).",
-    { timeoutMs: z.number().optional() }, (a) => handleRun(session, a));
+  reg("run", "Green-flag the loaded project, let it settle briefly (~2000ms), then report whether it finished (idle) or is still running — games with forever loops never go idle, so use snapshot/read_state to observe them. Pass waitForCompletion:true to wait for a terminating project to finish (up to timeoutMs, default 10000). timeoutMs overrides the settle/wait budget.",
+    { timeoutMs: z.number().optional(), waitForCompletion: z.boolean().optional() }, (a) => handleRun(session, a));
   reg("stop", "Stop all running scripts.", {}, () => handleStop(session));
   reg("snapshot", "Screenshot the stage as a PNG image.", {}, () => handleSnapshot(session));
   reg("read_state", "Read namespaced variables/lists/sprite state from the live editor.",
