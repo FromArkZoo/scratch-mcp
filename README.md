@@ -96,7 +96,17 @@ npm run build      # tsc -p tsconfig.json  → dist/
 npm test           # vitest run  (compiler + headless-VM + editor + MCP tests)
 ```
 
-The self-hosted editor (only needed for the live bridge) is built separately under `editor/`.
+The self-hosted Scratch editor bundle lives under `editor/` and is **built separately** (it and its
+deps are git-ignored). It is required by every editor-backed tool — `reload`, `run`, `snapshot`,
+`read_state`, `import_sb3` — so build it once after cloning:
+
+```bash
+cd editor
+npm install
+npm run build      # vite build → editor/dist/  (~85 MB, git-ignored)
+```
+
+If the bundle is missing, the editor tools fail loudly with this build hint (rather than hanging).
 
 ## Roadmap
 
