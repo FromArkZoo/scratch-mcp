@@ -1,10 +1,33 @@
 import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import { chromium, type Browser, type Page } from "playwright";
 import { serveDir, type StaticServer } from "./static-server.js";
 
+/**
+ * Resolve the self-hosted editor bundle (<repo>/editor/dist) from a module dir.
+ * Anchored to the scratch-mcp package root (NOT a fixed count of `../`), so it is
+ * correct whether this module runs from source (src/editor) or the compiled bin
+ * (dist/src/editor — one level deeper). The old `../../editor/dist` literal was
+ * right from source but off-by-one once tsc nested it under dist/, so the built
+ * server served a 404 page and launch hung the full 60s waiting for window.vm.
+ */
+export function resolveEditorDist(moduleDir: string): string {
+  let dir = moduleDir;
+  for (let i = 0; i < 8; i++) {
+    try {
+      const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { name?: string };
+      if (pkg.name === "scratch-mcp") return join(dir, "editor", "dist");
+    } catch { /* not here — keep walking up */ }
+    const parent = dirname(dir);
+    if (parent === dir) break; // filesystem root
+    dir = parent;
+  }
+  return resolve(moduleDir, "../../editor/dist"); // best-effort fallback (source layout)
+}
+
 const here = dirname(fileURLToPath(import.meta.url));
-const EDITOR_DIST = resolve(here, "../../editor/dist");
+const EDITOR_DIST = resolveEditorDist(here);
 
 export type ScalarMap = Record<string, string | number | boolean>;
 export type ListMap = Record<string, (string | number | boolean)[]>;
@@ -19,7 +42,7 @@ export interface ProjectState {
   lists: ListMap;         // Stage/global lists
   sprites: SpriteState[];
 }
-export interface LaunchOptions { headless?: boolean; port?: number; }
+export interface LaunchOptions { headless?: boolean; port?: number; editorDist?: string; }
 
 export class ScratchEditor {
   private constructor(
@@ -29,7 +52,13 @@ export class ScratchEditor {
   ) {}
 
   static async launch(opts: LaunchOptions = {}): Promise<ScratchEditor> {
-    const server = await serveDir(EDITOR_DIST, opts.port);
+    const dist = opts.editorDist ?? EDITOR_DIST;
+    // Fail loud BEFORE launching chromium: a missing bundle otherwise serves a 404
+    // page and the readiness gate below silently hangs the full 60s.
+    if (!existsSync(join(dist, "index.html"))) {
+      throw new Error(`editor bundle not found at ${dist} (no index.html). Build it with: (cd editor && npm run build).`);
+    }
+    const server = await serveDir(dist, opts.port);
     try {
       const browser = await chromium.launch({ headless: opts.headless ?? false });
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
@@ -111,8 +140,11 @@ export class ScratchEditor {
     }, b64);
   }
 
-  async run(opts: { waitMs?: number } = {}): Promise<{ idle: boolean }> {
-    const waitMs = opts.waitMs ?? 10_000;
+  async run(opts: { waitMs?: number } = {}): Promise<{ idle: boolean; running: boolean; threads: number }> {
+    // Settle briefly by default: a forever-loop project (every game) never emits
+    // PROJECT_RUN_STOP, so we report its liveness rather than blocking for the full
+    // budget. Pass a larger waitMs to wait for a terminating project to finish.
+    const waitMs = opts.waitMs ?? 2_000;
     // Arm a one-shot PROJECT_RUN_STOP listener, reset the flag, then green-flag.
     await this.page.evaluate(() => {
       const vm = (window as any).vm;
@@ -120,16 +152,29 @@ export class ScratchEditor {
       vm.runtime.once("PROJECT_RUN_STOP", () => { (window as any).__scratchRunDone = true; });
       vm.greenFlag();
     });
+    let idle = true;
     try {
       await this.page.waitForFunction(
         () => (window as any).__scratchRunDone === true,
         undefined,
         { timeout: waitMs },
       );
-      return { idle: true };
-    } catch {
-      return { idle: false }; // timed out — e.g. a forever loop never goes idle
+    } catch (e) {
+      // Only a settle timeout means "didn't reach a natural stop"; surface real errors.
+      if ((e as Error).name !== "TimeoutError") throw e;
+      idle = false;
     }
+    // Count live (non-monitor) threads to tell a running project from a quiesced one.
+    // Prefer the VM's own non-monitor counter; the fallback filters monitor (watcher)
+    // threads out itself so it can't falsely report a watcher-only project as running.
+    const threads = await this.page.evaluate(() => {
+      const rt = (window as any).vm.runtime;
+      const c = rt._nonMonitorThreadCount;
+      return typeof c === "number" ? c : (rt.threads ?? []).filter((t: any) => !t.updateMonitor).length;
+    });
+    // idle = reached PROJECT_RUN_STOP within the budget; running = still has live threads;
+    // neither = green flag triggered nothing that persisted.
+    return { idle, running: threads > 0 && !idle, threads };
   }
 
   async stop(): Promise<void> {

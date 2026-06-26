@@ -45,3 +45,15 @@ test("run resolves idle:false when a forever loop never settles", async () => {
   expect(elapsed).toBeLessThan(5000); // honors waitMs:800 — NOT Playwright's 30s default
   await editor.stop();
 });
+
+test("run() with no args settles fast on a forever loop and reports live threads (not a 10s block)", async () => {
+  await editor.loadProject(foreverSb3);
+  const start = Date.now();
+  const result = await editor.run(); // DEFAULT — must NOT inherit the old 10s wait
+  const elapsed = Date.now() - start;
+  expect(result.idle).toBe(false);
+  expect(result.running).toBe(true);
+  expect(result.threads).toBeGreaterThan(0);
+  expect(elapsed).toBeLessThan(4000); // default settle ~2s, not 10s
+  await editor.stop();
+});

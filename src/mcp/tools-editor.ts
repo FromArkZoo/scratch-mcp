@@ -14,13 +14,17 @@ export async function handleReload(session: Session, args: { path?: string }): P
   } catch (e) { return errorResult((e as Error).message); }
 }
 
-export async function handleRun(session: Session, args: { timeoutMs?: number }): Promise<ToolResult> {
+export async function handleRun(session: Session, args: { timeoutMs?: number; waitForCompletion?: boolean }): Promise<ToolResult> {
   try {
     if (!session.hasEditor()) return errorResult("no project loaded — call reload or import_sb3 first");
-    const { idle } = await (await session.getEditor()).run({ waitMs: args.timeoutMs ?? 10_000 });
-    return textResult(idle
-      ? "Ran to completion (idle)."
-      : "Still running after timeout (e.g. a forever loop).");
+    // Default: green-flag and let it settle (~2s) then report status — a game's forever
+    // loop never goes idle, so waiting longer just stalls the observe loop. Opt into a
+    // full run-to-completion wait with waitForCompletion (e.g. a finite, slow project).
+    const waitMs = args.waitForCompletion ? (args.timeoutMs ?? 10_000) : (args.timeoutMs ?? 2_000);
+    const { idle, running, threads } = await (await session.getEditor()).run({ waitMs });
+    if (idle) return textResult("Ran to completion (idle).");
+    if (running) return textResult(`Still running (${threads} live thread(s)) — use snapshot or read_state to observe.`);
+    return textResult("Green-flagged, but no scripts kept running — does the project have a 'when green flag clicked' hat?");
   } catch (e) { return errorResult((e as Error).message); }
 }
 
