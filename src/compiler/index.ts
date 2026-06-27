@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseManifest } from "./manifest.js";
 import { parseScripts } from "./parser/index.js";
+import { lintScripts } from "./lint.js";
 import { packageProject } from "./packager.js";
 import type { CompileResult, Diagnostic, ParsedScript } from "./types.js";
 
@@ -30,6 +31,7 @@ export async function compileProject(dir: string): Promise<CompileResult> {
     const knownLists = new Set<string>([...(t.lists ?? []).map((l) => l.name), ...globalListNames]);
     const { scripts, diagnostics: pd } = parseScripts(src, t.sourceFile, knownVars, knownLists);
     diagnostics.push(...pd);
+    diagnostics.push(...lintScripts(scripts, t.sourceFile));
     scriptsByTarget.set(t.name, scripts);
   }
 
