@@ -70,7 +70,7 @@ Three subsystems, one coherent server:
   variables:
     global: { r: 0, b: 0, c: 0 }
   ```
-- **Compiler** (`src/compiler/`) — a manifest parser + a hand-rolled scratchblocks parser + a per-category block dictionary (`blocks/categories/*.ts`, guarded by a signature-uniqueness check) + a hand-rolled [JSZip](https://stuk.github.io/jszip/) packager that emits Scratch-3 `.sb3`. Headless verification runs against `scratch-vm@5.0.300`. It's **fail-loud**: any unsupported block, unresolved name, or malformed script becomes a precise `file:line` diagnostic rather than a silently-broken project.
+- **Compiler** (`src/compiler/`) — a manifest parser + a hand-rolled scratchblocks parser + a per-category block dictionary (`blocks/categories/*.ts`, guarded by a signature-uniqueness check) + a hand-rolled [JSZip](https://stuk.github.io/jszip/) packager that emits Scratch-3 `.sb3`. Headless verification runs against `scratch-vm@5.0.300`. It's **fail-loud**: any unsupported block, unresolved name, or malformed script becomes a precise `file:line` diagnostic rather than a silently-broken project. It also **lints for performance foot-guns** (`lint.ts`): a `say`/`think` that runs every frame inside a `forever` — which forces a screen refresh per frame and starves other sprites' loops, crawling the whole project — is surfaced as a warning (warnings never fail the build).
   ```ts
   import { compileProject } from "./src/compiler/index.js";
   const { ok, sb3, diagnostics } = await compileProject("path/to/project-dir");
